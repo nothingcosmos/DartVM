@@ -1,31 +1,30 @@
 /**
- * random -> 0.1 increment
- * corei7 2600
- * DartVM r11635 5.5sec (not impl inlining)
- * OpenJDK7(Hotspot) 3sec (disable inlining)
- *
- * 2012/09/08 DartVM 3.8sec (impl double unboxing)
+ output ao2.ppm
+ corei7 2600 x64  5sec
+ corei7 2600 x86 40sec
  */
 #import('dart:io');
+//#import('dart:core');
 #import('dart:math', prefix:'Math');
+#import('drand.dart');
 
 double rand = -0.100;
 
 void main() {
   print("### start aobench ###");
-//  drand2 = new Math.Random();
-  for (var i = 0; i<4; i++) {
+  drand2 = new DRandom();
+//  for (var i = 0; i<4; i++) {
     var stime = new Date.now();
     var result = AOBench.run();
     var etime = new Date.now();
     var elapsedTime = etime.difference(stime).inMilliseconds;
     print("elapsed time = $elapsedTime ms");
-  }
+//  }
   print("### end   aobench ###");
   return ;
 }
 
-//var drand2;// = new Math.Random();
+var drand2;// = new Math.Random();
 
 class Vec {
     double x, y, z;
@@ -225,13 +224,13 @@ class Vec {
             for (i = 0; i < nphi; i++) {
                 // Pick a random ray direction with importance sampling.
                 //double r = Math.random();
-                //double r = drand2.nextDouble();
-                rand = rand + 0.1;
-                double r = rand + 0.1;
+                double r = drand2.nextDouble();
+                //rand = rand + 0.1;
+                //double r = rand + 0.1;
                 //double phi = 2.0 * Math.PI * Math.random();
-                //double phi = 2.0 * Math.PI * drand2.nextDouble();
-                rand = rand + 0.1;
-                double phi = 2.0 * Math.PI * rand + 0.1;
+                double phi = 2.0 * Math.PI * drand2.nextDouble();
+                //rand = rand + 0.1;
+                //double phi = 2.0 * Math.PI * rand + 0.1;
 
                 double sq = Math.sqrt(1.0 - r);
                 double x = Math.cos(phi) * sq;
@@ -258,9 +257,7 @@ class Vec {
         }
 
         // [0.0, 1.0]
-        //occlusion = (ntheta.toDouble() * nphi.toDouble() - occlusion) / (ntheta * nphi);
-        occlusion = ((ntheta * nphi).toDouble() - occlusion) / (ntheta * nphi);
-
+        occlusion = (ntheta * nphi - occlusion) / (ntheta * nphi);
         return new Vec(occlusion, occlusion, occlusion);
     }
 
@@ -273,12 +270,8 @@ class Vec {
             // subsampling
             for (int v = 0; v < nsubsamples; v++) {
                 for (int u = 0; u < nsubsamples; u++) {
-                    double px =
-                      (x.toDouble() + (u.toDouble() / nsubsamples.toDouble())
-                       - (width.toDouble() / 2.0))/(width.toDouble() / 2.0);
-                    double py =
-                      (y.toDouble() + (v.toDouble() / nsubsamples.toDouble())
-                       - (height.toDouble() / 2.0))/(height.toDouble() / 2.0);
+                    double px = (x + (u / nsubsamples) - (width / 2.0))/(width / 2.0);
+                    double py = (y + (v / nsubsamples) - (height / 2.0))/(height / 2.0);
                     py = -py;     // flip Y
 
                     double t = 10000.0;
