@@ -12,19 +12,16 @@ double rand = -0.100;
 
 void main() {
   print("### start aobench ###");
-  drand2 = new DRandom();
-//  for (var i = 0; i<4; i++) {
+  for (var i = 0; i<4; i++) {
     var stime = new Date.now();
     var result = AOBench.run();
     var etime = new Date.now();
     var elapsedTime = etime.difference(stime).inMilliseconds;
     print("elapsed time = $elapsedTime ms");
-//  }
+  }
   print("### end   aobench ###");
   return ;
 }
-
-var drand2;// = new Math.Random();
 
 class Vec {
     double x, y, z;
@@ -224,11 +221,11 @@ class Vec {
             for (i = 0; i < nphi; i++) {
                 // Pick a random ray direction with importance sampling.
                 //double r = Math.random();
-                double r = drand2.nextDouble();
+                double r = random();
                 //rand = rand + 0.1;
                 //double r = rand + 0.1;
                 //double phi = 2.0 * Math.PI * Math.random();
-                double phi = 2.0 * Math.PI * drand2.nextDouble();
+                double phi = 2.0 * Math.PI * random();
                 //rand = rand + 0.1;
                 //double phi = 2.0 * Math.PI * rand + 0.1;
 
