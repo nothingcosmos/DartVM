@@ -2,7 +2,7 @@ class B extends bench { int get() { return 1; } }
 class C extends bench { int get() { return 2; } }
 
 abstract class bench {
-  abstract int get();
+  int get();
   static final int LEN=100000;
   int test( ) {
     int sum=0;

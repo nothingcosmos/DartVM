@@ -1,12 +1,6 @@
-/**
- output ao2.ppm
- corei7 2600 x64  5sec
- corei7 2600 x86 40sec
- */
-#import('dart:io');
-//#import('dart:core');
-#import('dart:math', prefix:'Math');
-#import('drand.dart');
+import 'dart:math';
+import 'dart:io';
+import 'drand.dart';
 
 double rand = -0.100;
 
@@ -55,7 +49,7 @@ class Vec {
         }
     }
 
-    double get len() => Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+    double get len => sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
 
     double dot(Vec b) {
         return this.x * b.x + this.y * b.y + this.z * b.z;
@@ -101,7 +95,7 @@ class Vec {
         double D = B * B - C;
 
         if (D > 0.0) {
-            double t = -B - Math.sqrt(D);
+            double t = -B - sqrt(D);
             if ((t > 0.0) && (t < isect.t)) {
                 isect.t = t;
                 isect.hit = true;
@@ -225,14 +219,14 @@ class Vec {
                 //rand = rand + 0.1;
                 //double r = rand + 0.1;
                 //double phi = 2.0 * Math.PI * Math.random();
-                double phi = 2.0 * Math.PI * random();
+                double phi = 2.0 * PI * random();
                 //rand = rand + 0.1;
                 //double phi = 2.0 * Math.PI * rand + 0.1;
 
-                double sq = Math.sqrt(1.0 - r);
-                double x = Math.cos(phi) * sq;
-                double y = Math.sin(phi) * sq;
-                double z = Math.sqrt(r);
+                double sq = sqrt(1.0 - r);
+                double x = cos(phi) * sq;
+                double y = sin(phi) * sq;
+                double z = sqrt(r);
 
                 // local -> global
                 double rx = x * basis[0].x + y * basis[1].x + z * basis[2].x;

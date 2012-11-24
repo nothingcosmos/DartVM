@@ -1,13 +1,5 @@
-/**
- * random -> 0.1 increment
- * corei7 2600
- * DartVM r11635 5.5sec (not impl inlining)
- * OpenJDK7(Hotspot) 3sec (disable inlining)
- *
- * 2012/09/08 DartVM 3.8sec (impl double unboxing)
- */
-#import('dart:io');
-#import('dart:math', prefix:'Math');
+import 'dart:io';
+import 'dart:math';
 
 double rand = -0.100;
 
@@ -59,7 +51,7 @@ class Vec {
         }
     }
 
-    double get len() => Math.sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
+    double get len => sqrt(this.x * this.x + this.y * this.y + this.z * this.z);
 
     double dot(Vec b) {
         return this.x * b.x + this.y * b.y + this.z * b.z;
@@ -105,7 +97,7 @@ class Vec {
         double D = B * B - C;
 
         if (D > 0.0) {
-            double t = -B - Math.sqrt(D);
+            double t = -B - sqrt(D);
             if ((t > 0.0) && (t < isect.t)) {
                 isect.t = t;
                 isect.hit = true;
@@ -231,12 +223,12 @@ class Vec {
                 //double phi = 2.0 * Math.PI * Math.random();
                 //double phi = 2.0 * Math.PI * drand2.nextDouble();
                 rand = rand + 0.1;
-                double phi = 2.0 * Math.PI * rand + 0.1;
+                double phi = 2.0 * PI * rand + 0.1;
 
-                double sq = Math.sqrt(1.0 - r);
-                double x = Math.cos(phi) * sq;
-                double y = Math.sin(phi) * sq;
-                double z = Math.sqrt(r);
+                double sq = sqrt(1.0 - r);
+                double x = cos(phi) * sq;
+                double y = sin(phi) * sq;
+                double z = sqrt(r);
 
                 // local -> global
                 double rx = x * basis[0].x + y * basis[1].x + z * basis[2].x;
