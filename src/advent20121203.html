@@ -1,0 +1,276 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/03 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Garbage Collection Advent Calendar 2012 12/10" href="advent20121210.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/02" href="advent20121202.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/03</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121202.html">Dart VM Advent Calendar 2012 12/02</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121210.html">Garbage Collection Advent Calendar 2012 12/10</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-03">
+<h1>Dart VM Advent Calendar 2012 12/03<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-03" title="Permalink to this headline">¶</a></h1>
+<p>Dart VMのオプションの紹介です。</p>
+<div class="section" id="dart">
+<h2>dartを動かす<a class="headerlink" href="#dart" title="Permalink to this headline">¶</a></h2>
+<p>ビルドされたバイナリは、dartになります。実行する前にちゃんとパスを確認しましょう。</p>
+<p>サンプルのソースコードと、よくつかうオプションとして&#8211;checkedを紹介します。</p>
+<p>ソースコード</p>
+<div class="highlight-python"><pre>cat hello.dart
+main() {
+  int n = 0.1;
+  print("Hello World! $n");
+}</pre>
+</div>
+<p>実行結果(1)</p>
+<div class="highlight-python"><pre>$ dart hello.dart
+Hello World! 0.1</pre>
+</div>
+<p>実行結果(2) &#8211;checked</p>
+<div class="highlight-python"><pre>$ dart --checked hello.dart
+Unhandled exception:
+type 'double' is not a subtype of type 'int' of 'n'.
+#0      main (file:///home/elise/language/dart/work/basic/hello.dart:2:11)</pre>
+</div>
+<p>サンプルのhello.dartは、DartEditorで確認すると、warningになります。</p>
+<p>Analyzerで確認</p>
+<div class="highlight-python"><pre>$ dart_analyzer hello.dart
+file:/home/elise/language/dart/work/basic/hello.dart:2: 'double' is not assignable to 'int'
+    1: main() {
+    2:   int n = 0.1;</pre>
+</div>
+<p>オプションの&#8211;checkedを指定すると、dartが実行時に、runtime type checkを埋め込んだコードを生成します。</p>
+<p>チェックモードと呼ばれるものだと思います。</p>
+<p>dartは、precompileのwarningとruntime type checkの埋め込みによる2段構えの型チェックの元開発が行えます。</p>
+</div>
+<div class="section" id="dart-vm">
+<h2>Dart VMのオプション<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMには、2種類のオプションが存在します。</p>
+<p>dartコマンドのオプションと、Dart VM本体を制御するオプションです。</p>
+<p>dartコマンドのオプションを参照する</p>
+<div class="highlight-python"><pre>$ dart --help
+dart --help
+Usage: dart [&lt;vm-flags&gt;] &lt;dart-script-file&gt; [&lt;dart-options&gt;]
+
+Executes the Dart script passed as &lt;dart-script-file&gt;.
+
+Common options:
+--checked Insert runtime type checks and enable assertions (checked mode).
+--version Print the VM version.
+--help    Display this message (add --verbose for information about all
+          VM options).</pre>
+</div>
+<p>Dart VMの内部制御オプションを参照する</p>
+<div class="highlight-python"><pre>$ dart --verbose
+
+dart --verbose
+Usage: dart [&lt;vm-flags&gt;] &lt;dart-script-file&gt; [&lt;dart-options&gt;]
+
+Executes the Dart script passed as &lt;dart-script-file&gt;.
+
+Supported options:
+--checked
+  Insert runtime type checks and enable assertions (checked mode).
+
+--version
+  Print the VM version.
+
+--help
+  Display this message (add --verbose for information about all VM options).
+
+--package-root=&lt;path&gt;
+  Where to find packages, that is, "package:..." imports.
+
+--debug[:&lt;port number&gt;]
+  enables debugging and listens on specified port for debugger connections
+  (default port number is 5858)
+
+--break_at=&lt;location&gt;
+  sets a breakpoint at specified location where &lt;location&gt; is one of :
+  url:&lt;line_num&gt; e.g. test.dart:10
+  [&lt;class_name&gt;.]&lt;function_name&gt; e.g. B.foo
+
+--use_script_snapshot=&lt;file_name&gt;
+  executes Dart script present in the specified snapshot file
+
+The following options are only used for VM development and may
+be changed in any future version:
+Flag settings:
+array_bounds_check_elimination: true (Eliminate redundant bounds checks.)
+checked: (Enable checked mode.)
+code_comments: false (Include comments into code and disassembly)
+common_subexpression_elimination: true (Do common subexpression elimination.)
+compiler_stats: false (Compiler stat counters.)
+...以降省略。</pre>
+</div>
+<p>内部制御オプションは忘れやすいので、&#8211;verboseで全部出してくれるのは非常にうれしいです。</p>
+</div>
+<div class="section" id="id1">
+<h2>dartコマンドのオプション<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>dartコマンドのオプションは、主にdart/runtime/bin の各ファイルで定義されています。</p>
+<p>主にmain.ccや、gen_snapshot.ccでしょうか。</p>
+</div>
+<div class="section" id="id2">
+<h2>Dart VMの内部制御オプション<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>dartの内部制御オプションの特徴として、オプションの指定は、&#8211;でも__でもどちらでもよいです。</p>
+<p>Dart VMの内部制御オプションを参照したい場合は、</p>
+<p>dart/runtime/vm の中で、DEFINE_FLAG をgrepすればOKです。</p>
+<p>自分で使うオプションも、DEFINE_FLAGで自由に追加して大丈夫です。</p>
+<p>runtime/vm/dart_api_impl.cc</p>
+<div class="highlight-python"><pre>DEFINE_FLAG(bool, force_exit, false, "force exit without Wait."); /* オプションの定義 */
+...
+    while (!data.done) {
+      if (FLAG_force_exit) {  /* オプションの参照方法                 */
+        break;                /* 何をやっているかはお察しください。。 */
+      }
+      ml.Wait();
+    }</pre>
+</div>
+<p>個人的によく使うオプションを紹介します。
+verboseをgrepして探すことも多いですね。</p>
+<ol class="arabic simple">
+<li>dart &#8211;verbose | grep print</li>
+<li>dart &#8211;verbose | grep trace</li>
+<li>dart &#8211;verbose | grep heap</li>
+<li>dart &#8211;verbose | grep dis</li>
+<li>dart &#8211;verbose | grep false</li>
+</ol>
+<table border="1" class="docutils">
+<caption>オプションの紹介</caption>
+<colgroup>
+<col width="23%" />
+<col width="77%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">オプション</th>
+<th class="head">概要</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>print-flow-graph</td>
+<td>FlowGraphCompilerの最適化のログをIRレベルで出力します。</td>
+</tr>
+<tr class="row-odd"><td>&nbsp;</td>
+<td>FlowGraphCompilerのbefore afterのタイミングでIRを出力します。</td>
+</tr>
+<tr class="row-even"><td>&nbsp;</td>
+<td>他のオプションと組み合わせると、他フェーズのIRダンプも出力します。</td>
+</tr>
+<tr class="row-odd"><td>print-ast</td>
+<td>astを出力します。コンパイルエラーやRuntimeチェックがイミフな場合の検証に使います。</td>
+</tr>
+<tr class="row-even"><td>print-bootstrap</td>
+<td>起動時にbootstrapして、deserializeされたクラスを出力します。</td>
+</tr>
+<tr class="row-odd"><td>trace-inlining</td>
+<td>FlowGraphInlinerでのinliningのログを出力します。</td>
+</tr>
+<tr class="row-even"><td>trace-optimization</td>
+<td>FlowGraphCompilerで最適化した際の、IR変換の副作用を出力します。</td>
+</tr>
+<tr class="row-odd"><td>trace-deoptimization</td>
+<td>optimizeされたコードがdeoptimizationされたログを出力します。</td>
+</tr>
+<tr class="row-even"><td>trace-bailout</td>
+<td>コンパイル途中でbailoutされたログを出力します。コンパイル失敗ログです。</td>
+</tr>
+<tr class="row-odd"><td>trace_isolates</td>
+<td>isolateの生死のログを出力します。</td>
+</tr>
+<tr class="row-even"><td>disassemble</td>
+<td>生成した全コードをdisassembleして表示します。</td>
+</tr>
+<tr class="row-odd"><td>disassemble_optimized</td>
+<td>FlowGraphCompilerでコンパイルされたコードのみdisassembleして表示します。</td>
+</tr>
+<tr class="row-even"><td>disassemble_stubs</td>
+<td>ICをdisassmebleして表示します。</td>
+</tr>
+<tr class="row-odd"><td>trace_disabling_optimized_code</td>
+<td>deoptimizationログと似たようなものですが、最適化されたコードを破棄したログです。</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121202.html">Dart VM Advent Calendar 2012 12/02</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121210.html">Garbage Collection Advent Calendar 2012 12/10</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
