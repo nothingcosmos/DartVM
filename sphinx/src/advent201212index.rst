@@ -32,12 +32,12 @@ Dart VM index
 (15) OptionalTypes1 (dynamic)
 (16) OptionalTypes2 (generics)
 (17) Runtime3 hotcode
-(18) flow_graph_compiler1 overview
-(19) flow_graph_compiler2 intermediate representation
-(20) flow_graph_compiler3 type inference
-(21) flow_graph_compiler4 boxing-unboxing
-(22) flow_graph_compiler4 gvn&cse
-(23) perf連携
-(24) native extention
-(25) message passing & snapshot
+(18) FlowGraphCompiler1 overview
+(19) FlowGraphCompiler2 intermediate representation
+(20) FlowGraphCompiler3 type inference
+(21) FlowGraphCompiler4 boxing-unboxing
+(22) FlowGraphCompiler5 gvn&cse
+(23) Linux perf
+(24) Native extension
+(25) Message passing & Snapshot
 

@@ -9,7 +9,7 @@ Dart VM Advent Calendar 2012 12/01
 Dart VMの魅力
 ==============================================================================
 
-Dart VMの最大の魅力は、速さへのこだわりだと思っています。
+Dart VMの最大の魅力は、速さへのこだわりです。
 
 既にV8より10倍高速に起動し、将来的には2倍高速に動作するのを目指しているようです。
 
@@ -17,7 +17,7 @@ Dart VMの最大の魅力は、速さへのこだわりだと思っています�
 JavaScriptにどのくらい性能向上できる余地が残っているのか、
 何がボトルネックなのかが見えているのだと思います。
 
-そして、その壁をECMAScriptによる仕様改善により進化させていくことも可能だと思います。
+そして、その壁をECMAScriptの仕様改善により進化させていくことも可能だと思います。
 
 私には、さらなる性能向上を目指したVMのDesignと、
 性能向上を優先した上で柔軟な言語仕様を提供しようとしている
@@ -31,7 +31,7 @@ Dart VMの性能
 
 score表示であり、緑色が優れています。
 
-DeltaBlueやRichardsなどは、octane-benchmarkにも含まれているもので、
+DeltaBlueやRichardsは、octane-benchmarkにも含まれているもので、
 以下のdart benchmark harnessから試すことができます。
 
 https://github.com/dart-lang/benchmark_harness
@@ -62,7 +62,7 @@ http://www.dartlang.org/slides/2012/09/strangeloop/pushing-the-limits-of-web-bro
 Dartの言語仕様
 ==============================================================================
 
-dartの言語仕様をsmalltalkと比較した紹介資料です。 これがわかりやすいかも。
+dartの言語仕様をsmalltalkと比較した紹介資料です。 これがわかりやすい。
 
 http://www.dartlang.org/slides/2012/03/smalltalk-industry-conference/DARTtalk-20120319.pdf
 
