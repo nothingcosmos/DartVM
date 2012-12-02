@@ -29,7 +29,6 @@
     <script type="text/javascript" src="../_static/theme_extras.js"></script>
     <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
     <link rel="up" title="Dart VM index" href="advent201212index.html" />
-    <link rel="next" title="Garbage Collection Advent Calendar 2012 12/10" href="advent20121210.html" />
     <link rel="prev" title="Dart VM Advent Calendar 2012 12/02" href="advent20121202.html" /> 
   </head>
   <body>
@@ -43,8 +42,6 @@
         «&#160;&#160;<a href="advent20121202.html">Dart VM Advent Calendar 2012 12/02</a>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
-        &#160;&#160;::&#160;&#160;
-        <a href="advent20121210.html">Garbage Collection Advent Calendar 2012 12/10</a>&#160;&#160;»
         </p>
 
       </div>
@@ -147,6 +144,7 @@ compiler_stats: false (Compiler stat counters.)
 ...以降省略。</pre>
 </div>
 <p>内部制御オプションは忘れやすいので、&#8211;verboseで全部出してくれるのは非常にうれしいです。</p>
+<p>オプション-vは&#8211;verboseの短縮になり、便利です。</p>
 </div>
 <div class="section" id="id1">
 <h2>dartコマンドのオプション<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
@@ -214,23 +212,23 @@ verboseをgrepして探すことも多いですね。</p>
 <tr class="row-odd"><td>trace-deoptimization</td>
 <td>optimizeされたコードがdeoptimizationされたログを出力します。</td>
 </tr>
-<tr class="row-even"><td>trace-bailout</td>
+<tr class="row-even"><td>trace_disabling_optimized_code</td>
+<td>deoptimizationログと似たようなものですが、最適化されたコードを破棄したログです。</td>
+</tr>
+<tr class="row-odd"><td>trace-bailout</td>
 <td>コンパイル途中でbailoutされたログを出力します。コンパイル失敗ログです。</td>
 </tr>
-<tr class="row-odd"><td>trace_isolates</td>
+<tr class="row-even"><td>trace_isolates</td>
 <td>isolateの生死のログを出力します。</td>
 </tr>
-<tr class="row-even"><td>disassemble</td>
+<tr class="row-odd"><td>disassemble</td>
 <td>生成した全コードをdisassembleして表示します。</td>
 </tr>
-<tr class="row-odd"><td>disassemble_optimized</td>
+<tr class="row-even"><td>disassemble_optimized</td>
 <td>FlowGraphCompilerでコンパイルされたコードのみdisassembleして表示します。</td>
 </tr>
-<tr class="row-even"><td>disassemble_stubs</td>
-<td>ICをdisassmebleして表示します。</td>
-</tr>
-<tr class="row-odd"><td>trace_disabling_optimized_code</td>
-<td>deoptimizationログと似たようなものですが、最適化されたコードを破棄したログです。</td>
+<tr class="row-odd"><td>disassemble_stubs</td>
+<td>生成済みstubをdisassmebleして表示します。上記disassembleオプションでは出力されません。</td>
 </tr>
 </tbody>
 </table>
@@ -245,8 +243,6 @@ verboseをgrepして探すことも多いですね。</p>
         «&#160;&#160;<a href="advent20121202.html">Dart VM Advent Calendar 2012 12/02</a>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
-        &#160;&#160;::&#160;&#160;
-        <a href="advent20121210.html">Garbage Collection Advent Calendar 2012 12/10</a>&#160;&#160;»
         </p>
 
       </div>

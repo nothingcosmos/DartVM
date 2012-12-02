@@ -6,8 +6,7 @@ Dart VM index
 
   advent20121201
   advent20121202
-..  advent20121203
-
+  advent20121203
 ..  advent20121204
 ..  advent20121205
 ..  advent20121210
