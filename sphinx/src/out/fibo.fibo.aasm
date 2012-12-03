@@ -1,0 +1,59 @@
+Code for optimized function 'file:///home/elise/language/dart/work/adven/fibo.dart_::_fibo' {
+0xb3048308    55                     push ebp
+0xb3048309    89e5                   mov ebp,esp
+0xb304830b    e800000000             call 0xb3048310
+0xb3048310    83ec04                 sub esp,0x4
+0xb3048313    8b4508                 mov eax,[ebp+0x8]
+0xb3048316    3b257c7a6b08           cmp esp,[0x86b7a7c]
+0xb304831c    0f8668000000           jna 0xb304838a
+0xb3048322    a801                   test al,0x1
+0xb3048324    0f8573000000           jnz 0xb304839d
+0xb304832a    83f804                 cmp eax,0x4
+0xb304832d    0f8d05000000           jnl 0xb3048338
+0xb3048333    89ec                   mov esp,ebp
+0xb3048335    5d                     pop ebp
+0xb3048336    c3                     ret
+0xb3048337    90                     nop
+0xb3048338    89c1                   mov ecx,eax
+0xb304833a    83e902                 sub ecx,0x2
+0xb304833d    51                     push ecx
+0xb304833e    bab16b0fb3             mov edx,0xb30f6bb1  Array[1, 1, null]
+0xb3048343    e8c0803702             call 0xb53c0408  [stub: CallStaticFunction]
+0xb3048348    83c404                 add esp,0x4
+0xb304834b    8b4d08                 mov ecx,[ebp+0x8]
+0xb304834e    8945f8                 mov [ebp-0x8],eax
+0xb3048351    83e904                 sub ecx,0x4
+0xb3048354    51                     push ecx
+0xb3048355    bab16b0fb3             mov edx,0xb30f6bb1  Array[1, 1, null]
+0xb304835a    e8a9803702             call 0xb53c0408  [stub: CallStaticFunction]
+0xb304835f    83c404                 add esp,0x4
+0xb3048362    89c1                   mov ecx,eax
+0xb3048364    8b45f8                 mov eax,[ebp-0x8]
+0xb3048367    a801                   test al,0x1
+0xb3048369    0f8533000000           jnz 0xb30483a2
+0xb304836f    f6c101                 test_b ecx,0x1
+0xb3048372    0f852f000000           jnz 0xb30483a7
+0xb3048378    89c2                   mov edx,eax
+0xb304837a    03d1                   add edx,ecx
+0xb304837c    0f802a000000           jo 0xb30483ac
+0xb3048382    89d0                   mov eax,edx
+0xb3048384    89ec                   mov esp,ebp
+0xb3048386    5d                     pop ebp
+0xb3048387    c3                     ret
+0xb3048388    90                     nop
+0xb3048389    cc                     int3
+0xb304838a    50                     push eax
+0xb304838b    b9f0c20a08             mov ecx,0x80ac2f0
+0xb3048390    ba00000000             mov edx,0
+0xb3048395    e88e7c3702             call 0xb53c0028  [stub: CallToRuntime]
+0xb304839a    58                     pop eax
+0xb304839b    eb85                   jmp 0xb3048322
+0xb304839d    e8c6813702             call 0xb53c0568  [stub: Deoptimize]
+0xb30483a2    e8c1813702             call 0xb53c0568  [stub: Deoptimize]
+0xb30483a7    e8bc813702             call 0xb53c0568  [stub: Deoptimize]
+0xb30483ac    e8b7813702             call 0xb53c0568  [stub: Deoptimize]
+0xb30483b1    e972813702             jmp 0xb53c0528  [stub: FixCallersTarget]
+0xb30483b6    e94d823702             jmp 0xb53c0608  [stub: DeoptimizeLazy]
+}
+
+

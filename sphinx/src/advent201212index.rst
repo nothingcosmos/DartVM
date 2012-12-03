@@ -7,7 +7,7 @@ Dart VM index
   advent20121201
   advent20121202
   advent20121203
-..  advent20121204
+  advent20121204
 ..  advent20121205
 ..  advent20121210
 
@@ -19,7 +19,7 @@ Dart VM index
 (2)  Dart VMのビルド方法
 (3)  Dart VMのオプション
 (4)  Dart VMの概要
-(5)  Dart VMの特徴
+(5)  Dart VMの概要2
 (6)  Dart VMの構成とアーキテクチャ
 (7)  Benchmark1
 (8)  Benchmark2
