@@ -9,3 +9,8 @@ int fibo(int n) {
 main() {
   fibo(40);
 }
+
+$ dart fibo.dart
+102334155
+ret = 903 ms
+
