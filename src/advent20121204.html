@@ -60,8 +60,8 @@
                   version revision     build time</pre>
 </div>
 <p>環境は、Linux ubuntu12(ia32) corei7 です。</p>
-<div class="section" id="dart-vm">
-<h2>Dart VMの概要<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="dart-vm-1">
+<h2>Dart VMの概要(1)<a class="headerlink" href="#dart-vm-1" title="Permalink to this headline">¶</a></h2>
 <p>一般的なVMは、ソースコードをASTに変換した後IRに変換し、そのIRをインタプリタ実行します。</p>
 <p>Dart VMはV8と同様、ソースコードからAST、IRに変換し、IRをJITコンパイルしてから実行します。</p>
 <p>そのため、インタプリタ実行する機能はなく、未対応のARMでは動かないです。</p>
@@ -341,6 +341,11 @@ V8はMIPSにも対応していますが、Dart VMはどうでしょうね。。�
 main() {
   fibo(40);
 }
+
+$ dart fibo.dart
+102334155
+ret = 903 ms
+
 </pre>
 </div>
 </div>

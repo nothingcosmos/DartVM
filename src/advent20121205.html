@@ -29,6 +29,7 @@
     <script type="text/javascript" src="../_static/theme_extras.js"></script>
     <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
     <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar 2012 12/07" href="advent20121207.html" />
     <link rel="prev" title="Dart VM Advent Calendar 2012 12/04" href="advent20121204.html" /> 
   </head>
   <body>
@@ -42,6 +43,8 @@
         «&#160;&#160;<a href="advent20121204.html">Dart VM Advent Calendar 2012 12/04</a>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121207.html">Dart VM Advent Calendar 2012 12/07</a>&#160;&#160;»
         </p>
 
       </div>
@@ -64,6 +67,11 @@
 main() {
   fibo(40);
 }
+
+$ dart fibo.dart
+102334155
+ret = 903 ms
+
 </pre>
 </div>
 </div>
@@ -121,14 +129,14 @@ B3[target]
 
 </pre>
 </div>
-<p>特徴は、+や-演算も、InstanceCallで呼び出している点です。</p>
+<p>特徴は、(+)や(-)演算も、InstanceCallで呼び出している点です。</p>
 <p>Dartは言語仕様において、a + bは、a.(+)(b) のようなメソッド呼び出しの糖衣構文だそうです。</p>
 <p>そのため、変数aの型のメソッド(+)を、変数aのthisポインタと、変数bを引数に呼び出すイメージかな？</p>
-<p>InstanceCallはさらに特殊な命令で、InstanceCall呼び出しの中で、
+<p>InstanceCallはさらに特殊な命令で、InstanceCallから生成されるアセンブラコードの中で、
 変数aと変数bの型を記録する処理が入っています。</p>
-<p>Dart VMの型情報の収集は、InstanceCallで行います。</p>
-<p>最初の(n-1)は、n(40)も1もint(Smi型)であるため、</p>
-<p>InstanceCall(-) では、InstanceCall(-)は、(Smi型,Smi型)から呼ばれたと記録されます。</p>
+<p>Dart VMの型情報の収集は、InstanceCallの中で行うと考えてOKです。</p>
+<p>最初の(n-1)は、n(40)も1もint(Smi型)であるため、
+InstanceCall(-) では、InstanceCall(-)は、(Smi型,Smi型)から呼ばれたと記録されます。</p>
 </div>
 <div class="section" id="id1">
 <h2>fiboのアセンブラ(非最適化)<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
@@ -291,20 +299,14 @@ var    n=0  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)  --&gt; ((Smi)n)   .(add
 </div>
 <p>そのため、以下のTwoArgsCheckInlineCacheのStub呼び出しは、
 引数にどんな型が来ても、呼び出し先のメソッドを適切に選んで、目的の(+)メソッドを呼び出します。</p>
-<p>呼び出す(+)メソッドの候補は多数あります。</p>
 <p>TwoArgsCheckInlineCache</p>
 <div class="highlight-python"><pre>mov ecx,0xb32d06f1  'ICData target:'+' num-checks: 0'
 mov edx,0xb31eba89  Array[2, 2, null]
 call 0xb30402d8  [stub: TwoArgsCheckInlineCache] //2引数のInlineCache
 add esp,0x8</pre>
 </div>
-<p>また、未解決のPointクラスの(+)メソッドを呼び出す場合、以下の手順が必要でしょう。</p>
-<ol class="arabic simple">
-<li>Pointクラスを探す。</li>
-<li>Pointクラスに(+)メソッドが定義されているか確認。</li>
-<li>(+)メソッドをJITコンパイルしてコードを生成する。</li>
-</ol>
-<p>上記の問題を解決するため、InlineCacheという動的メソッドディスパッチの最適化方法があります。</p>
+<p>しかし、呼び出す(+)メソッドの候補は多数あり、毎回探して呼び出すと性能劣化が懸念されます。</p>
+<p>そのため、InlineCacheという動的メソッドディスパッチの最適化方法を使用します。</p>
 </div>
 <div class="section" id="inlinecache">
 <h2>InlineCache<a class="headerlink" href="#inlinecache" title="Permalink to this headline">¶</a></h2>
@@ -316,6 +318,12 @@ add esp,0x8</pre>
 <p>InlineCacheは、calleeごとにCacheを持ち、メソッド呼び出し履歴を記録します。</p>
 <p>fiboが呼び出すメソッド、(&lt;)と(-)と(-)と(+)の4ヶ所で、各々がCacheテーブルを持つはずです。</p>
 <p>また、TwoArgsCheckInlineCacheのStubは、未解決クラスのloadとJITコンパイルも行うことができます。</p>
+<p>仮に未解決のPointクラスの(+)メソッドを呼び出す場合、以下の手順が必要でしょう。</p>
+<ol class="arabic simple">
+<li>Pointクラスを探す。</li>
+<li>Pointクラスに(+)メソッドが定義されているか確認。</li>
+<li>(+)メソッドをJITコンパイルしてコードを生成する。</li>
+</ol>
 </div>
 <div class="section" id="id2">
 <h2>次回、最適化JITコンパイル！！！<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
@@ -343,6 +351,8 @@ OptimizeFunctionの呼び出しにより、再コンパイル(最適化)され�
         «&#160;&#160;<a href="advent20121204.html">Dart VM Advent Calendar 2012 12/04</a>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121207.html">Dart VM Advent Calendar 2012 12/07</a>&#160;&#160;»
         </p>
 
       </div>

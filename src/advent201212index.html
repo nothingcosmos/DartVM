@@ -76,7 +76,7 @@
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="advent20121204.html">Dart VM Advent Calendar 2012 12/04</a><ul>
-<li class="toctree-l2"><a class="reference internal" href="advent20121204.html#dart-vm">Dart VMの概要</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121204.html#dart-vm-1">Dart VMの概要(1)</a></li>
 <li class="toctree-l2"><a class="reference internal" href="advent20121204.html#os">対応OS</a></li>
 <li class="toctree-l2"><a class="reference internal" href="advent20121204.html#cpu">ターゲットCPUアーキテクチャ</a></li>
 <li class="toctree-l2"><a class="reference internal" href="advent20121204.html#id1">実行の大まかな流れ</a></li>
@@ -100,48 +100,52 @@
 <li class="toctree-l2"><a class="reference internal" href="advent20121205.html#id3">まとめ</a></li>
 </ul>
 </li>
+<li class="toctree-l1"><a class="reference internal" href="advent20121207.html">Dart VM Advent Calendar 2012 12/07</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="advent20121207.html#dart-vm-3">Dart VMの概要(3)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121207.html#fibo">fiboの中間表現(非最適化時)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121207.html#id1">fiboの中間表現(最適化時、型情報のフィードバック後)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121207.html#id2">fiboの中間表現(最適化後)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121207.html#id3">fiboのアセンブラ(最適化)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121207.html#id4">まとめ</a></li>
+</ul>
+</li>
 </ul>
 </div>
 <div class="section" id="id1">
 <h2>努力目標<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
 <p>内容は予告なしに変更される可能性があります。</p>
-<ol class="arabic simple">
+<ul class="simple">
 <li>Dart VMの魅力</li>
 <li>Dart VMのビルド方法</li>
 <li>Dart VMのオプション</li>
 <li>Dart VMの概要1</li>
 <li>Dart VMの概要2</li>
 <li>Dart VMの概要3</li>
-</ol>
-<ol class="arabic simple" start="6">
+<li>Dart VMと他VMとの比較</li>
 <li>Dart VMの構成とアーキテクチャ</li>
-<li>Benchmark1</li>
-<li>Benchmark2</li>
-<li>performance tuning</li>
-</ol>
-<ol class="arabic simple" start="11">
+<li>Benchmark &amp; performance tuning</li>
+<li>Dart VMのGC overview</li>
 <li>Runtime1 isolate</li>
-</ol>
-<p>(12) Runtime2 memory layout
-(17) Runtime3 hotcode</p>
-<p>(10) GC1 overview
-(13) GC2 Scavenger
-(14) GC3 Mark&amp;Sweep</p>
-<ol class="arabic simple" start="15">
+<li>Runtime2 memory layout</li>
+<li>Dart VMのGC Scavenger</li>
+<li>Dart VMのGC Mark&amp;Sweep</li>
 <li>OptionalTypes1 (dynamic)</li>
 <li>OptionalTypes2 (generics)</li>
-</ol>
-<ol class="arabic simple" start="18">
+<li>Runtime3 hotcode &amp; unoptimized path</li>
 <li>FlowGraphCompiler1 overview</li>
 <li>FlowGraphCompiler2 intermediate representation</li>
 <li>FlowGraphCompiler3 type inference</li>
-<li>FlowGraphCompiler4 boxing-unboxing</li>
-<li>FlowGraphCompiler5 gvn&amp;cse</li>
-<li>Linux perf</li>
-<li>Native extension</li>
-</ol>
-<p>(25) Message passing &amp; Snapshot
-(99) InlineCache</p>
+<li>FlowGraphCompiler4 boxing-unboxing &amp; representation</li>
+<li>FlowGraphCompiler5 gvn &amp; cse</li>
+<li>FlowGraphCompiler6 inlining</li>
+<li>FlowGraphCompiler7 register allocation</li>
+<li>FlowGraphCompiler8 register allocation</li>
+<li>Linux perf &amp; interface</li>
+<li>Dart VM Native extension</li>
+<li>Message passing &amp; Snapshot</li>
+<li>InlineCaching &amp; Stubs</li>
+<li>Runtime4 Deoptimization</li>
+</ul>
 </div>
 </div>
 

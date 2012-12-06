@@ -9,45 +9,43 @@ Dart VM index
   advent20121203
   advent20121204
   advent20121205
-..  advent20121206
+  advent20121207
+
 ..  advent20121210
 
 努力目標
 ===============================================================================
 内容は予告なしに変更される可能性があります。
 
-(1)  Dart VMの魅力
-(2)  Dart VMのビルド方法
-(3)  Dart VMのオプション
-(4)  Dart VMの概要1
-(5)  Dart VMの概要2
-(6)  Dart VMの概要3
+- Dart VMの魅力
+- Dart VMのビルド方法
+- Dart VMのオプション
+- Dart VMの概要1
+- Dart VMの概要2
+- Dart VMの概要3
 
-(6)  Dart VMの構成とアーキテクチャ
 
-(7)  Benchmark1
-(8)  Benchmark2
-(9)  performance tuning
-
-(11) Runtime1 isolate
-(12) Runtime2 memory layout
-(17) Runtime3 hotcode
-
-(10) GC1 overview
-(13) GC2 Scavenger
-(14) GC3 Mark&Sweep
-
-(15) OptionalTypes1 (dynamic)
-(16) OptionalTypes2 (generics)
-
-(18) FlowGraphCompiler1 overview
-(19) FlowGraphCompiler2 intermediate representation
-(20) FlowGraphCompiler3 type inference
-(21) FlowGraphCompiler4 boxing-unboxing
-(22) FlowGraphCompiler5 gvn&cse
-
-(23) Linux perf
-(24) Native extension
-(25) Message passing & Snapshot
-(99) InlineCache
-
+- Dart VMと他VMとの比較
+- Dart VMの構成とアーキテクチャ
+- Benchmark & performance tuning
+- Dart VMのGC overview
+- Runtime1 isolate
+- Runtime2 memory layout
+- Dart VMのGC Scavenger
+- Dart VMのGC Mark&Sweep
+- OptionalTypes1 (dynamic)
+- OptionalTypes2 (generics)
+- Runtime3 hotcode & unoptimized path
+- FlowGraphCompiler1 overview
+- FlowGraphCompiler2 intermediate representation
+- FlowGraphCompiler3 type inference
+- FlowGraphCompiler4 boxing-unboxing & representation
+- FlowGraphCompiler5 gvn & cse
+- FlowGraphCompiler6 inlining
+- FlowGraphCompiler7 register allocation
+- FlowGraphCompiler8 register allocation
+- Linux perf & interface
+- Dart VM Native extension
+- Message passing & Snapshot
+- InlineCaching & Stubs
+- Runtime4 Deoptimization
