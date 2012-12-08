@@ -11,7 +11,7 @@ Dart VM index
   advent20121205
   advent20121207
   advent20121208
-..  advent20121209
+  advent20121209
 ..  advent20121210
 ..  advent20121211
 
@@ -26,12 +26,12 @@ Dart VM index
 - Dart VMの概要2
 - Dart VMの概要3
 - Dart VMと他VMとの比較
+- Perf Profiling
 
 候補
 
-- Dart VMの構成とアーキテクチャ
-- Benchmark & performance tuning
 - Dart VMのGC overview
+- Dart VMの構成とアーキテクチャ
 - Runtime1 isolate
 - Runtime2 memory layout
 - Dart VMのGC Scavenger
@@ -46,9 +46,8 @@ Dart VM index
 - FlowGraphCompiler5 gvn & cse
 - FlowGraphCompiler6 inlining
 - FlowGraphCompiler7 register allocation
-- FlowGraphCompiler8 register allocation
-- Linux perf & interface
 - Dart VM Native extension
+- Benchmark & performance tuning
 - Message passing & Snapshot
 - InlineCaching & Stubs
 - Runtime4 Deoptimization

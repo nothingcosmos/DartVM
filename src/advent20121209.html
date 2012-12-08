@@ -1,0 +1,192 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/09 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/08" href="advent20121208.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/09</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121208.html">Dart VM Advent Calendar 2012 12/08</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-09">
+<h1>Dart VM Advent Calendar 2012 12/09<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-09" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="linux-perf-profiling">
+<h2>Linux Perf Profiling<a class="headerlink" href="#linux-perf-profiling" title="Permalink to this headline">¶</a></h2>
+<p>dartはperfと連携し、実行時の情報を含めてprofilingすることができます。</p>
+<p>以下のURLでも紹介されています。</p>
+<p><a class="reference external" href="http://code.google.com/p/dart/wiki/Profiling">http://code.google.com/p/dart/wiki/Profiling</a></p>
+<p>試し方</p>
+<div class="highlight-python"><pre>$ perf record -f -g dart --generate_perf_events_symbols aobench.dart
+$ perf report --call-graph flat</pre>
+</div>
+<p>JITコンパイルしたコードのプロファイル情報を取得できており、ボトルネックの調査がしやすくなっています。</p>
+<img alt="../images/perf_aobench.png" src="../images/perf_aobench.png" />
+<p>perfで測定時は、dartに&#8211;generate_perf_events_symbolsオプションを指定しない場合、
+Dart VMは単体のプロセスとしてperfの解析対象となります。</p>
+<p>以下のような味気ないプロファイル結果になってしまいますのでご注意ください。</p>
+<p>試し方</p>
+<div class="highlight-python"><pre>$ perf record -f -g dart aobench.dart
+$ perf report --call-graph flat</pre>
+</div>
+<p>これはこれで、ScavengerやMarkingというログがみえていますが、これらはGCです。</p>
+<img alt="../images/perf_aobench_notgen.png" src="../images/perf_aobench_notgen.png" />
+<p>ubuntu12だか、いつかのkernel更新から、perf reportがstdoutにtext形式で結果を出力するのではなく、
+専用のviewerを開くようになりました。</p>
+<p>カーソルで上下移動し、右を押すと対象シンボルのアセンブラ表示に切り替え、
+アセンブラ命令のfrequencyをみれるようになってます。</p>
+<p>Dart VMの場合、perf reportする際にはJITコンパイルしたコードが捨てられているので、あまり意味はないです。</p>
+</div>
+<div class="section" id="perf">
+<h2>perf連携用ファイルの生成<a class="headerlink" href="#perf" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMは、&#8211;generate_perf_events_symbolsオプションを指定した場合、
+JITコンパイルしたコードの情報(アドレス、サイズ、シンボル)を記録したファイルを生成しています。</p>
+<p>perfは、record時にDart VMが生成したファイル(/temp/perf-[dart pid].map)を参照します。</p>
+<p>Dart VMは、Process::CurrentProcessId()でdart自体のプロセスIDを取得したのち、
+&#8220;/tmp/perf-%ld.map&#8221;, pid というファイルを生成し、以下のようなアドレス、サイズ、シンボル情報を書き込みます。</p>
+<p>pidの参照</p>
+<div class="highlight-python"><pre>$ ps -la
+F S   UID   PID  PPID  C PRI  NI ADDR SZ WCHAN  TTY          TIME CMD
+0 S  1000  6987  5680  0  80   0 -  1533 wait   pts/4    00:00:00 perf.sh
+0 S  1000  6988  6987  0  80   0 -  1388 poll_s pts/4    00:00:00 perf_3.2.0-30
+0 R  1000  6991  6988 96  80   0 - 19996 -      pts/4    00:00:05 dart
+0 R  1000  6994  5681  0  80   0 -  1410 -      pts/6    00:00:00 ps</pre>
+</div>
+<p>/tmp/perf-6991.mapの中身</p>
+<div class="highlight-python"><pre>// addr  size marker symbol
+b3006ef8 10e dart:core__StringBufferImpl@0x36924d72__StringBufferImpl@0x36924d72.
+b3007018 a4 dart:core__StringBufferImpl@0x36924d72_clear
+b30070d8 30 dart:core__StringBufferImpl@0x36924d72_set__buffer@0x36924d72
+b3007118 30 dart:core__StringBufferImpl@0x36924d72_set__length@0x36924d72
+b301a228 e file:///home/elise/bench/aobench_inc2.dart_Intersection_get_t
+b301a248 30 file:///home/elise/bench/aobench_inc2.dart_Intersection_set_p
+b301a288 b23 file:///home/elise/bench/aobench_inc2.dart_AOBench_ambientOcclusion   &lt;-- JITコンパイル(非最適化)
+b301adc8 e file:///home/elise/bench/aobench_inc2.dart_AOBench_get_NAO_SAMPLES
+b301ade8 e file:///home/elise/bench/aobench_inc2.dart_Intersection_get_p
+b301ae08 e file:///home/elise/bench/aobench_inc2.dart_Intersection_get_n
+b301ae28 49b file:///home/elise/bench/aobench_inc2.dart_AOBench_orthoBasis         &lt;-- JITコンパイル(非最適化)
+b301b638 bd dart:math_::_cos
+b301b708 bd dart:math_::_sin
+b301b7d8 101b *file:///home/elise/bench/aobench_inc2.dart_AOBench_ambientOcclusion &lt;-- JITコンパイル(最適化)
+b301c808 39b *file:///home/elise/bench/aobench_inc2.dart_Vec_cross
+b301cbb8 32c *file:///home/elise/bench/aobench_inc2.dart_Vec_-
+b301cef8 d6a *file:///home/elise/bench/aobench_inc2.dart_Sphere_intersect
+b301dc78 bf1 *file:///home/elise/bench/aobench_inc2.dart_AOBench_orthoBasis        &lt;-- JITコンパイル(最適化)</pre>
+</div>
+<p>アドレスとシンボル情報は、基本的にコンパイル順にファイルに書き出していきます。</p>
+<p>vm/code_observers.cc</p>
+<div class="highlight-python"><pre>virtual void Notify(const char* name,
+                    uword base,
+                    uword prologue_offset,
+                    uword size,
+                    bool optimized) {
+  const char* format = "%"Px" %"Px" %s%s\n";       // address, asm codesize, marker, symbol
+  const char* marker = optimized ? "*" : "";       // optimized functionは、markerとして*をつける。
+  intptr_t len = OS::SNPrint(NULL, 0, format, base, size, marker, name);
+  char* buffer = Isolate::Current()-&gt;current_zone()-&gt;Alloc&lt;char&gt;(len + 1);
+  OS::SNPrint(buffer, len + 1, format, base, size, marker, name);
+  Dart_FileWriteCallback file_write = Isolate::file_write_callback();
+  ASSERT(file_write != NULL);
+  void* file = Dart::perf_events_file();
+  ASSERT(file != NULL);
+  (*file_write)(buffer, len, file);
+}</pre>
+</div>
+<p>上記Notifyは、JITコンパイルの終了処理において、Code::FinalizeCode()から呼ばれます。</p>
+<p>そのため、非最適化、最適化に限らず、
+JITコンパイルされたコードのEntryAddress, Size, Symbolが逐一ファイルに出力されます。</p>
+<p>そのため、記録の粒度はJITコンパイルされた関数単位です。</p>
+<p>OnStackReplacement等、CodeのEntryが複数ある場合、ちょっと工夫しないといけないかもです。</p>
+</div>
+<div class="section" id="multithread-profiling">
+<h2>MultiThread Profiling<a class="headerlink" href="#multithread-profiling" title="Permalink to this headline">¶</a></h2>
+<p>最近、intel VTUNE用インターフェースも追加されましたが、そちらはまだ試せていないです。</p>
+<p>isolateを複数生成した重い処理を行った際に、VTUNEでどのように見えるのか試してみたいです。</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p class="last">LLVMがVTUNEによるJIT Profiling対応してのも今年からだったかな。3.2から？</p>
+</div>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>perfを使えば、jITコンパイルしたコードのプロファイル情報を手軽に取得できる。</li>
+<li>perfと連携するため、アドレス、サイズ、シンボル情報をファイルに出力している。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121208.html">Dart VM Advent Calendar 2012 12/08</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
