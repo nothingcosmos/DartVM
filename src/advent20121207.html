@@ -29,6 +29,7 @@
     <script type="text/javascript" src="../_static/theme_extras.js"></script>
     <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
     <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar 2012 12/08" href="advent20121208.html" />
     <link rel="prev" title="Dart VM Advent Calendar 2012 12/05" href="advent20121205.html" /> 
   </head>
   <body>
@@ -42,6 +43,8 @@
         «&#160;&#160;<a href="advent20121205.html">Dart VM Advent Calendar 2012 12/05</a>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121208.html">Dart VM Advent Calendar 2012 12/08</a>&#160;&#160;»
         </p>
 
       </div>
@@ -54,6 +57,32 @@
 <div class="section" id="dart-vm-3">
 <h2>Dart VMの概要(3)<a class="headerlink" href="#dart-vm-3" title="Permalink to this headline">¶</a></h2>
 <p>前回の続き、fiboが2000回以上よばれて最適化JITコンパイルされるところから！！！</p>
+<p>Dart VMは、2000回以上実行された関数は、returnする際にOptimizeFunctionを呼び出し、最適化JITコンパイルします。</p>
+<p>stub_OptimizeFunction自体は、Dart VMのRuntime API(OptimizeInvokedFunction)を呼び出すためのstubです。</p>
+<p>Returnのコード</p>
+<div class="highlight-python"><pre>0xb30482b1    ba11042db3             mov edx,0xb32d0411  'Function 'fibo': static.'
+0xb30482b6    ff422b                 inc [edx+0x2b]       // fiboのusage_counterをinc
+0xb30482b9    817a2bd0070000         cmp [edx+0x2b],0x7d0 // 2000と比較してhotcode check
+0xb30482c0    7c05                   jl 0xb30482c7
+0xb30482c2    e8e185ffff             call 0xb30408a8  [stub: OptimizeFunction]</pre>
+</div>
+<p>stub: OptimizeFuntion:</p>
+<div class="highlight-python"><pre>Code for stub '_stub_OptimizeFunction': {
+0xb30408a8    55                     push ebp
+0xb30408a9    89e5                   mov ebp,esp
+0xb30408ab    6800000000             push 0
+0xb30408b0    50                     push eax
+0xb30408b1    52                     push edx
+0xb30408b2    b950070b08             mov ecx,0x80b0750
+0xb30408b7    ba01000000             mov edx,0x1
+0xb30408bc    e867f73702             call 0xb53c0028  [stub: CallToRuntime]
+0xb30408c1    5a                     pop edx
+0xb30408c2    58                     pop eax
+0xb30408c3    89ec                   mov esp,ebp
+0xb30408c5    5d                     pop ebp
+0xb30408c6    c3                     ret</pre>
+</div>
+<p>Dart VMは、JITコンパイルしたコードに、Dart VMが提供するRuntime APIを呼び出すStubを埋め込みます。</p>
 </div>
 <div class="section" id="fibo">
 <h2>fiboの中間表現(非最適化時)<a class="headerlink" href="#fibo" title="Permalink to this headline">¶</a></h2>
@@ -90,6 +119,7 @@ B3[target]
 
 </pre>
 </div>
+<p>JITコンパイル(非最適化)とJITコンパイル(最適化)の中間表現を比較してみます。</p>
 </div>
 <div class="section" id="id1">
 <h2>fiboの中間表現(最適化時、型情報のフィードバック後)<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
@@ -123,9 +153,9 @@ B3[target]
     Return:26(v9)                         ^ (+)のreceiverがSmi ^ arg1がSmi
 </pre>
 </div>
-<p>非最適化のfiboのコードを実行した際に、値がSmi型であると記録しておき、
-最適化JITコンパイル時には、その型情報をフィードバックします。</p>
-<p>型情報は、receiverとargのペアで記録されます。</p>
+<p>非最適化のfiboのコードを実行した際に、InlineCacheは値がSmi型であると記録しておきます。</p>
+<p>最適化JITコンパイル時には、その型情報をフィードバックして最適化を行います。</p>
+<p>型情報は、receiverとargsのtripleで記録されます。</p>
 <p>仮に、複数の型が混在する場合、</p>
 <p>[PT: _Smi, _Smi | _Smi, _Double | _Double, _Smi]のような表現になるはずです。</p>
 <div class="admonition note">
@@ -182,9 +212,12 @@ IRのdefinevalueはtからvに変わって、重ならないようにnumbering�
 <li>型推論の結果、高速な中間表現に置き換える。</li>
 <li>スタックとレジスタ割付けが行われ、ParallelMove命令に置き換える。</li>
 </ol>
-<p>高速な命令に置き換える、では、Smi型でのみ呼び出すInstance命令をBinarySmiOpに置き換えています。</p>
+<p>高速な命令に置き換える、では、Smi型でのみ呼び出すInstanceCallをBinarySmiOpに置き換えています。</p>
 <p>BinarySmiOpは、receiverとarg1がSmi型である場合に置き換えられる(特殊化)命令になります。</p>
 <p>BinarySmiOpは、最終的にアセンブラ数命令に変換されます。</p>
+</div>
+<div class="section" id="type-guard">
+<h2>Type Guard<a class="headerlink" href="#type-guard" title="Permalink to this headline">¶</a></h2>
 <p>Check命令の挿入は、少々特殊なことを行います。</p>
 <div class="highlight-python"><pre>24:     v5 &lt;- StaticCall:15(fibo v4)
 30:     v8 &lt;- StaticCall:23(fibo v7)
@@ -280,11 +313,11 @@ Smi型が入ってくる限り非常に高速に動作します。</p>
 </pre>
 </div>
 <p>非最適化のコードと比較して、高速なコードを生成しています。</p>
-<p>特に、InlineCacheのStub呼び出しをしていたところは、すべて高速な命令に置き換えられています。</p>
-<p>BinarySmiOpは、アセンブラ1-2命令になっています。</p>
-<p>また、BinarySmiOpでは、両者ともSmi型であるため、1bit左シフト済みの値が入っているはずですが、</p>
+<p>特に、InlineCacheのStub呼び出しをしていたところは、すべて高速な命令に置き換えられており、
+BinarySmiOpは、アセンブラ1-2命令になっています。</p>
+<p>またBinarySmiOpでは、両者ともSmi型であるため、1bit左シフト済みの値が入っているはずですが、</p>
 <p>右シフトで元の値に戻さずに、add sub cmp命令を行っています。</p>
-<p>Printする場合には、右シフトが挿入されるはずです。</p>
+<p>print(ret)など、int値を参照する場合には、右シフトが挿入されるはずです。</p>
 <p>Dart VMの初期化、JITコンパイル(非最適化)、JITコンパイル(最適化)、fibo(40)の計算まで、
 大体900msecくらいなので、かなり速いと思います。</p>
 <p>corei7(ia32)にて、</p>
@@ -299,7 +332,7 @@ Bootstrap of core classes :  28 micros.      &lt;-- Bootstrap時の、core lib�
 Total runtime for isolate :  909578 micros.  &lt;-- main以降の合計時間
 
 real  0m0.924s                               &lt;-- VMの起動時間は、25,000 microsくらいかな？
-user  0m0.920s                                   実はVMのclosingに結構かかる。
+user  0m0.920s
 sys   0m0.000s</pre>
 </div>
 </div>
@@ -321,6 +354,8 @@ sys   0m0.000s</pre>
         «&#160;&#160;<a href="advent20121205.html">Dart VM Advent Calendar 2012 12/05</a>
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121208.html">Dart VM Advent Calendar 2012 12/08</a>&#160;&#160;»
         </p>
 
       </div>

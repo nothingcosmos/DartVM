@@ -8,18 +8,52 @@ Dart VMの概要(3)
 
 前回の続き、fiboが2000回以上よばれて最適化JITコンパイルされるところから！！！
 
+Dart VMは、2000回以上実行された関数は、returnする際にOptimizeFunctionを呼び出し、最適化JITコンパイルします。
+
+stub_OptimizeFunction自体は、Dart VMのRuntime API(OptimizeInvokedFunction)を呼び出すためのstubです。
+
+Returnのコード ::
+
+  0xb30482b1    ba11042db3             mov edx,0xb32d0411  'Function 'fibo': static.'
+  0xb30482b6    ff422b                 inc [edx+0x2b]       // fiboのusage_counterをinc
+  0xb30482b9    817a2bd0070000         cmp [edx+0x2b],0x7d0 // 2000と比較してhotcode check
+  0xb30482c0    7c05                   jl 0xb30482c7
+  0xb30482c2    e8e185ffff             call 0xb30408a8  [stub: OptimizeFunction]
+
+stub: OptimizeFuntion::
+
+  Code for stub '_stub_OptimizeFunction': {
+  0xb30408a8    55                     push ebp
+  0xb30408a9    89e5                   mov ebp,esp
+  0xb30408ab    6800000000             push 0
+  0xb30408b0    50                     push eax
+  0xb30408b1    52                     push edx
+  0xb30408b2    b950070b08             mov ecx,0x80b0750
+  0xb30408b7    ba01000000             mov edx,0x1
+  0xb30408bc    e867f73702             call 0xb53c0028  [stub: CallToRuntime]
+  0xb30408c1    5a                     pop edx
+  0xb30408c2    58                     pop eax
+  0xb30408c3    89ec                   mov esp,ebp
+  0xb30408c5    5d                     pop ebp
+  0xb30408c6    c3                     ret
+
+Dart VMは、JITコンパイルしたコードに、Dart VMが提供するRuntime APIを呼び出すStubを埋め込みます。
+
 fiboの中間表現(非最適化時)
 ===============================================================================
 .. literalinclude:: out/fibo.fibo.ir
+
+JITコンパイル(非最適化)とJITコンパイル(最適化)の中間表現を比較してみます。
 
 fiboの中間表現(最適化時、型情報のフィードバック後)
 ===============================================================================
 .. literalinclude:: out/fibo.fibo.a1.ir
 
-非最適化のfiboのコードを実行した際に、値がSmi型であると記録しておき、
-最適化JITコンパイル時には、その型情報をフィードバックします。
+非最適化のfiboのコードを実行した際に、InlineCacheは値がSmi型であると記録しておきます。
 
-型情報は、receiverとargのペアで記録されます。
+最適化JITコンパイル時には、その型情報をフィードバックして最適化を行います。
+
+型情報は、receiverとargsのtripleで記録されます。
 
 仮に、複数の型が混在する場合、
 
@@ -44,11 +78,14 @@ fiboの中間表現(最適化後)
 (3) 型推論の結果、高速な中間表現に置き換える。
 (4) スタックとレジスタ割付けが行われ、ParallelMove命令に置き換える。
 
-高速な命令に置き換える、では、Smi型でのみ呼び出すInstance命令をBinarySmiOpに置き換えています。
+高速な命令に置き換える、では、Smi型でのみ呼び出すInstanceCallをBinarySmiOpに置き換えています。
 
 BinarySmiOpは、receiverとarg1がSmi型である場合に置き換えられる(特殊化)命令になります。
 
 BinarySmiOpは、最終的にアセンブラ数命令に変換されます。
+
+Type Guard
+===============================================================================
 
 Check命令の挿入は、少々特殊なことを行います。 ::
 
@@ -82,15 +119,14 @@ fiboのアセンブラ(最適化)
 
 非最適化のコードと比較して、高速なコードを生成しています。
 
-特に、InlineCacheのStub呼び出しをしていたところは、すべて高速な命令に置き換えられています。
-
+特に、InlineCacheのStub呼び出しをしていたところは、すべて高速な命令に置き換えられており、
 BinarySmiOpは、アセンブラ1-2命令になっています。
 
-また、BinarySmiOpでは、両者ともSmi型であるため、1bit左シフト済みの値が入っているはずですが、
+またBinarySmiOpでは、両者ともSmi型であるため、1bit左シフト済みの値が入っているはずですが、
 
 右シフトで元の値に戻さずに、add sub cmp命令を行っています。
 
-Printする場合には、右シフトが挿入されるはずです。
+print(ret)など、int値を参照する場合には、右シフトが挿入されるはずです。
 
 Dart VMの初期化、JITコンパイル(非最適化)、JITコンパイル(最適化)、fibo(40)の計算まで、
 大体900msecくらいなので、かなり速いと思います。
@@ -108,7 +144,7 @@ corei7(ia32)にて、 ::
   Total runtime for isolate :  909578 micros.  <-- main以降の合計時間
 
   real  0m0.924s                               <-- VMの起動時間は、25,000 microsくらいかな？
-  user  0m0.920s                                   実はVMのclosingに結構かかる。
+  user  0m0.920s
   sys   0m0.000s
 
 まとめ
