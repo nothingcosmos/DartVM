@@ -25,7 +25,7 @@ Instructions (size = 752)
 0x27b299cf    15  8b45fc         mov eax,[ebp+0xfc]
 0x27b299d2    18  8945f0         mov [ebp+0xf0],eax
 0x27b299d5    21  89c6           mov esi,eax
-0x27b299d7    23  3b2530c7d908   cmp esp,[0x8d9c730]
+0x27b299d7    23  3b2530c7d908   cmp esp,[0x8d9c730]         // check stackoverflow
 0x27b299dd    29  7305           jnc 36  (0x27b299e4)
 0x27b299df    31  e85c5efeff     call 0x27b0f840             ;; code: STUB, StackCheckStub, minor: 0
 0x27b299e4    36  8b4508         mov eax,[ebp+0x8]           // eax <-- (smi)n

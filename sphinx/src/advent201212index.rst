@@ -10,8 +10,10 @@ Dart VM index
   advent20121204
   advent20121205
   advent20121207
-
+  advent20121208
+..  advent20121209
 ..  advent20121210
+..  advent20121211
 
 努力目標
 ===============================================================================
@@ -23,9 +25,10 @@ Dart VM index
 - Dart VMの概要1
 - Dart VMの概要2
 - Dart VMの概要3
-
-
 - Dart VMと他VMとの比較
+
+候補
+
 - Dart VMの構成とアーキテクチャ
 - Benchmark & performance tuning
 - Dart VMのGC overview
