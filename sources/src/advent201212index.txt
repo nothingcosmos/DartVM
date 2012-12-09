@@ -12,8 +12,9 @@ Dart VM index
   advent20121207
   advent20121208
   advent20121209
-..  advent20121210
+  advent20121210
 ..  advent20121211
+..  advent20121212
 
 努力目標
 ===============================================================================
@@ -27,10 +28,10 @@ Dart VM index
 - Dart VMの概要3
 - Dart VMと他VMとの比較
 - Perf Profiling
+- Dart VMのGC overview
 
 候補
 
-- Dart VMのGC overview
 - Dart VMの構成とアーキテクチャ
 - Runtime1 isolate
 - Runtime2 memory layout
@@ -51,3 +52,6 @@ Dart VM index
 - Message passing & Snapshot
 - InlineCaching & Stubs
 - Runtime4 Deoptimization
+- intrinsics1 scalarlist
+- intrinsics2 string
+- intrinsics2 list, map
