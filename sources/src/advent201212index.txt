@@ -13,7 +13,7 @@ Dart VM index
   advent20121208
   advent20121209
   advent20121210
-..  advent20121211
+  advent20121211
 ..  advent20121212
 
 努力目標
@@ -32,14 +32,18 @@ Dart VM index
 
 候補
 
-- Dart VMの構成とアーキテクチャ
+- Dart VM src overview
+- Dart VM Architecture
 - Runtime1 isolate
 - Runtime2 memory layout
+- Runtime3 hotcode & unoptimized path
+- Runtime4 Deoptimization & Stackmaps
 - Dart VMのGC Scavenger
 - Dart VMのGC Mark&Sweep
+- Dart VMのGC Root Reference & Handles
+- Dart VMのGC Extended Weak, Peer, External, old->new pointers
 - OptionalTypes1 (dynamic)
 - OptionalTypes2 (generics)
-- Runtime3 hotcode & unoptimized path
 - FlowGraphCompiler1 overview
 - FlowGraphCompiler2 intermediate representation
 - FlowGraphCompiler3 type inference
@@ -51,7 +55,6 @@ Dart VM index
 - Benchmark & performance tuning
 - Message passing & Snapshot
 - InlineCaching & Stubs
-- Runtime4 Deoptimization
 - intrinsics1 scalarlist
 - intrinsics2 string
-- intrinsics2 list, map
+- intrinsics3 list, map

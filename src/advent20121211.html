@@ -1,0 +1,260 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/11 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="prev" title="Garbage Collection Advent Calendar 2012 12/10" href="advent20121210.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/11</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121210.html">Garbage Collection Advent Calendar 2012 12/10</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-11">
+<h1>Dart VM Advent Calendar 2012 12/11<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-11" title="Permalink to this headline">¶</a></h1>
+<p>関数呼び出しを2000回を越えると、stub OptimizeFunctionが呼ばれるわけですが、その辺を詳しく。</p>
+<div class="section" id="jvm">
+<h2>JVMのコンパイルフロー<a class="headerlink" href="#jvm" title="Permalink to this headline">¶</a></h2>
+<p>たとえば、インタプリタ実行するJVMの場合、インタプリタ実行中に特定の関数呼び出しが規定数を越えた場合、
+以下のようなフローでJITコンパイルします。</p>
+<ol class="arabic simple">
+<li>インタプリタ実行中に関数呼び出しを行う。</li>
+<li>その関数を呼び出した回数をインクリメント</li>
+<li>規定値を越えた確認する。もし越えた場合、JITコンパイルをコンパイルスレッドに依頼する。</li>
+<li>呼び出し関数に飛んで、インタプリタ実行を継続する。</li>
+</ol>
+<ol class="arabic simple">
+<li>コンパイルスレッドは、コンパイル用のQueueから、コンパイル依頼を1個取り出す。</li>
+<li>JITコンパイルしてコードを生成する。</li>
+<li>mutexでlockして、コードを対象クラスのメソッドにintallする。</li>
+<li>Lockを解除し、次のコンパイル依頼をQueueから取り出す。</li>
+</ol>
+<p>基本的には、インタプリタスレッドとコンパイルスレッドは別です。</p>
+<p>インタプリタは、JITコンパイルされたコードが、対象メソッドにinstallされていたら、
+インタプリタ実行から対象メソッドのコードへ処理を移します。</p>
+<p>そのため、JITコンパイルで処理が止まることはないです。</p>
+</div>
+<div class="section" id="dart-vm">
+<h2>Dart VMのコンパイルフロー<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMのコンパイルフローは、JITコンパイル -&gt; コードの実行 -&gt; JITコンパイル -&gt; コードの実行</p>
+<p>と、シーケンシャルにJITコンパイルを行います。</p>
+<p>そのため、JITコンパイルして止まる時間が含まれます。</p>
+<p>Returnのコード</p>
+<div class="highlight-python"><pre>0xb30482b1    ba11042db3             mov edx,0xb32d0411  'Function 'fibo': static.'
+0xb30482b6    ff422b                 inc [edx+0x2b]       // fiboのusage_counterをinc
+0xb30482b9    817a2bd0070000         cmp [edx+0x2b],0x7d0 // 2000と比較してhotcode check
+0xb30482c0    7c05                   jl 0xb30482c7
+0xb30482c2    e8e185ffff             call 0xb30408a8  [stub: OptimizeFunction]</pre>
+</div>
+<p>Stub OptimizeFunction</p>
+<div class="highlight-python"><pre>Code for stub '_stub_OptimizeFunction': {
+0xb30408a8    55                     push ebp
+0xb30408a9    89e5                   mov ebp,esp
+0xb30408ab    6800000000             push 0
+0xb30408b0    50                     push eax
+0xb30408b1    52                     push edx          // Function 'fibo' : static.
+0xb30408b2    b950070b08             mov ecx,0x80b0750 // OptimizedInvokedFunctionRuntimeEntry
+0xb30408b7    ba01000000             mov edx,0x1
+0xb30408bc    e867f73702             call 0xb53c0028  [stub: CallToRuntime]
+0xb30408c1    5a                     pop edx
+0xb30408c2    58                     pop eax
+0xb30408c3    89ec                   mov esp,ebp
+0xb30408c5    5d                     pop ebp
+0xb30408c6    c3                     ret
+}</pre>
+</div>
+<p>CallToRuntimeによって呼び出すOptimizedInvokedFunctionは、DartVMのRuntimeに含まれます。</p>
+<p>そのため、絵で書くとこうかな。。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-0bd017bf42908a3bd3513a3262b06fb42f773bd1.png" alt="None" width="640" height="120" />
+</p>
+<p>ここから少しややこしいところなのですが、</p>
+<p>CodeとStubOptimizeFunctionは、実行用のコードをDart VMが生成しています。</p>
+<p>Codeは、JITコンパイルして生成したコードであり、StubOptimizeFunctionは、mainの実行を始める前に、Dart VMが生成しておいたコードです。</p>
+<p>そのため、Stub系には、Stubを生成するGeneratorと、生成されたStubが存在します。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-488c51a10d258e221a8cbaf4f985c2fd42527553.png" alt="None" width="448" height="200" />
+</p>
+<p>生成されたStubOptimizedFunctionのコード</p>
+<p>Stub OptimizeFunction</p>
+<div class="highlight-python"><pre>Code for stub '_stub_OptimizeFunction': {
+0xb30408a8    55                     push ebp
+0xb30408a9    89e5                   mov ebp,esp
+0xb30408ab    6800000000             push 0
+0xb30408b0    50                     push eax
+0xb30408b1    52                     push edx          // Function 'fibo' : static.
+0xb30408b2    b950070b08             mov ecx,0x80b0750 // OptimizedInvokedFunctionRuntimeEntry
+0xb30408b7    ba01000000             mov edx,0x1
+0xb30408bc    e867f73702             call 0xb53c0028  [stub: CallToRuntime]
+0xb30408c1    5a                     pop edx
+0xb30408c2    58                     pop eax
+0xb30408c3    89ec                   mov esp,ebp
+0xb30408c5    5d                     pop ebp
+0xb30408c6    c3                     ret
+}</pre>
+</div>
+<p>Dart VMのRuntimeに含まれる、StubOptimizeFunctionを生成するGenerator</p>
+<p>GenerateOptimizeFunctionStub:</p>
+<div class="highlight-python"><pre>// Calls to runtime to ooptimized give function
+// EDX: function to be reoptimized.
+// EAX: result of function being optimized (preserved).
+void StubCode::GenerateOptimizeFunctionStub(Assembler* assembler) {
+  AssemblerMacros::EnterStubFrame(assembler);
+  __ pushl(EAX);
+  __ pushl(EDX);
+  __ CallRuntime(kOptimizeInvokedFunctionRuntimeEntry);
+  __ popl(EDX);
+  __ popl(EAX);
+  __ LeaveFrame();
+  __ ret();
+}</pre>
+</div>
+<p>Generatorは、主にDartVMが持つAssemblerで記述されています。上は一応、C++です。</p>
+<p>JIT Assemblerと呼ぶのかな？</p>
+<p>上記のGeneratorによって、Dart VMが実行時(主にIsolateの初期化中)にStubのコードを生成します。</p>
+<p>JITコンパイラは、DartのソースコードをJITコンパイルする際に、生成済みのStubへのcallを埋め込んで、コードを生成します。</p>
+</div>
+<div class="section" id="optimizeinvokedfunction">
+<h2>OptimizeInvokedFunction<a class="headerlink" href="#optimizeinvokedfunction" title="Permalink to this headline">¶</a></h2>
+<p>話を戻すと、StubOptimizeFunctionから、DartVMが内包するOptimizedInvokedFunctionが呼ばれます。</p>
+<p>runtime/vm/code_generator.cc::OptimizedInvokedFunction</p>
+<div class="highlight-python"><pre>// This is called from function that needs to be optimized.
+// The requesting function can be already optimized (reoptimization).
+DEFINE_RUNTIME_ENTRY(OptimizeInvokedFunction, 1) {
+  ASSERT(arguments.ArgCount() ==
+         kOptimizeInvokedFunctionRuntimeEntry.argument_count());
+  const intptr_t kLowInvocationCount = -100000000;
+  const Function&amp; function = Function::CheckedHandle(arguments.ArgAt(0));
+
+  // JITコンパイル(最適化)が指示されている場合、
+  if (function.is_optimizable()) {
+    const Error&amp; error =
+        Error::Handle(Compiler::CompileOptimizedFunction(function)); //JITコンパイル(最適化)
+    if (!error.IsNull()) {
+      Exceptions::PropagateError(error);
+    }
+    const Code&amp; optimized_code = Code::Handle(function.CurrentCode());
+    ASSERT(!optimized_code.IsNull());
+    // Set usage counter for reoptimization.
+    function.set_usage_counter(
+        function.usage_counter() - FLAG_reoptimization_counter_threshold);
+  } else {
+    if (FLAG_trace_failed_optimization_attempts) {
+      PrintCaller("Not Optimizable");
+    }
+    // TODO(5442338): Abort as this should not happen.
+    function.set_usage_counter(kLowInvocationCount);
+  }
+}</pre>
+</div>
+<p>ここからコンパイル処理です。</p>
+<p>runtime/vm/compiler.cc</p>
+<div class="highlight-python"><pre>RawError* Compiler::CompileOptimizedFunction(const Function&amp; function) {
+  return CompileFunctionHelper(function, true);  // Optimized.
+}
+
+static RawError* CompileFunctionHelper(const Function&amp; function,
+                                       bool optimized) {
+  ...
+  if (setjmp(*jump.Set()) == 0) {
+    TIMERSCOPE(time_compilation);
+    Timer per_compile_timer(FLAG_trace_compiler, "Compilation time");
+    per_compile_timer.Start();
+
+    ParsedFunction* parsed_function = new ParsedFunction(
+        Function::ZoneHandle(function.raw()));
+    if (FLAG_trace_compiler) {
+      OS::Print("Compiling %sfunction: '%s' @ token %"Pd"\n",
+                (optimized ? "optimized " : ""),
+                function.ToFullyQualifiedCString(),
+                function.token_pos());
+    }
+    Parser::ParseFunction(parsed_function); // ソースコードをASTに変換
+    parsed_function-&gt;AllocateVariables();
+
+    const bool success =
+        CompileParsedFunctionHelper(*parsed_function, optimized); //コンパイル</pre>
+</div>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>StubInvokedFunctino経由で、DartVMのJITコンパイルを呼ぶ。</li>
+<li>ここまでシングルスレッドでシーケンシャルに実行。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121210.html">Garbage Collection Advent Calendar 2012 12/10</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
