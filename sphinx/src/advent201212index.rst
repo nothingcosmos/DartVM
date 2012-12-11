@@ -14,7 +14,7 @@ Dart VM index
   advent20121209
   advent20121210
   advent20121211
-..  advent20121212
+  advent20121212
 
 努力目標
 ===============================================================================
@@ -29,6 +29,8 @@ Dart VM index
 - Dart VMと他VMとの比較
 - Perf Profiling
 - Dart VMのGC overview
+- ExecutionCodeとRuntimeの連携
+- FlowGraphCompiler overview
 
 候補
 
@@ -44,7 +46,6 @@ Dart VM index
 - Dart VMのGC Extended Weak, Peer, External, old->new pointers
 - OptionalTypes1 (dynamic)
 - OptionalTypes2 (generics)
-- FlowGraphCompiler1 overview
 - FlowGraphCompiler2 intermediate representation
 - FlowGraphCompiler3 type inference
 - FlowGraphCompiler4 boxing-unboxing & representation

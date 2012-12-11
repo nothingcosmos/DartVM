@@ -1,39 +1,41 @@
 Dart VM Advent Calendar 2012 12/11
 ###############################################################################
 
-関数呼び出しを2000回を越えると、stub OptimizeFunctionが呼ばれるわけですが、その辺を詳しく。
+ExecutionCodeとRuntimeの連携に関して詳しく。
 
-JVMのコンパイルフロー
+
+JVMのインタプリタとJITコンパイラの連携
 ===============================================================================
 
 たとえば、インタプリタ実行するJVMの場合、インタプリタ実行中に特定の関数呼び出しが規定数を越えた場合、
 以下のようなフローでJITコンパイルします。
 
-(1) インタプリタ実行中に関数呼び出しを行う。
-(2) その関数を呼び出した回数をインクリメント
-(3) 規定値を越えた確認する。もし越えた場合、JITコンパイルをコンパイルスレッドに依頼する。
-(4) 呼び出し関数に飛んで、インタプリタ実行を継続する。
+(1) インタプリタ実行中に関数呼び出しを見つける。
+(2) JITコンパイルされたコードが既にあれば、JITコンパイルされたコードを実行する。
+(3) JITコンパイルされていなければ、以降の処理。
+(4) その関数を呼び出した回数をインクリメント
+(5) 規定値を越えたか確認する。もし越えた場合、JITコンパイルをコンパイルスレッドに依頼する。
+(6) 呼び出し関数に飛んで、インタプリタ実行を継続する。
 
-(1) コンパイルスレッドは、コンパイル用のQueueから、コンパイル依頼を1個取り出す。
+JITコンパイラはインタプリタ実行と並行して動作し、コンパイル依頼を1件ずつ処理します。
+
+(1) Queueから、コンパイル依頼を1個取り出す。
 (2) JITコンパイルしてコードを生成する。
 (3) mutexでlockして、コードを対象クラスのメソッドにintallする。
 (4) Lockを解除し、次のコンパイル依頼をQueueから取り出す。
 
 基本的には、インタプリタスレッドとコンパイルスレッドは別です。
 
-インタプリタは、JITコンパイルされたコードが、対象メソッドにinstallされていたら、
-インタプリタ実行から対象メソッドのコードへ処理を移します。
-
 そのため、JITコンパイルで処理が止まることはないです。
 
-Dart VMのコンパイルフロー
+Dart VMのRuntimeとJITコンパイラの連携
 ===============================================================================
 
-Dart VMのコンパイルフローは、JITコンパイル -> コードの実行 -> JITコンパイル -> コードの実行
+Dart VMの場合、JITコンパイル -> コードの実行 -> JITコンパイル -> コードの実行
 
-と、シーケンシャルにJITコンパイルを行います。
+と、シーケンシャルに連携を行います。
 
-そのため、JITコンパイルして止まる時間が含まれます。
+そのため、JITコンパイルして、プログラムの実行が止まる時間が存在します。
 
 Returnのコード ::
 
@@ -42,6 +44,8 @@ Returnのコード ::
   0xb30482b9    817a2bd0070000         cmp [edx+0x2b],0x7d0 // 2000と比較してhotcode check
   0xb30482c0    7c05                   jl 0xb30482c7
   0xb30482c2    e8e185ffff             call 0xb30408a8  [stub: OptimizeFunction]
+
+関数呼び出しが2000回を越えると、stub OptimizeFunctionが呼ばれます。
 
 Stub OptimizeFunction ::
 
@@ -63,7 +67,7 @@ Stub OptimizeFunction ::
 
 CallToRuntimeによって呼び出すOptimizedInvokedFunctionは、DartVMのRuntimeに含まれます。
 
-そのため、絵で書くとこうかな。。
+そのため、絵で書くとこんなかんじ。
 
 .. blockdiag ::
 
@@ -78,8 +82,6 @@ CallToRuntimeによって呼び出すOptimizedInvokedFunctionは、DartVMのRunt
     }
   }
 
-
-ここから少しややこしいところなのですが、
 
 CodeとStubOptimizeFunctionは、実行用のコードをDart VMが生成しています。
 
@@ -143,7 +145,32 @@ JIT Assemblerと呼ぶのかな？
 
 上記のGeneratorによって、Dart VMが実行時(主にIsolateの初期化中)にStubのコードを生成します。
 
+
+ExecutionCodeとRuntimeの連携
+===============================================================================
+
 JITコンパイラは、DartのソースコードをJITコンパイルする際に、生成済みのStubへのcallを埋め込んで、コードを生成します。
+
+多くの場合Stubs経由でRuntimeEntryを呼び出し、ExecutionCodeとRuntime間で連携します。
+
+.. blockdiag ::
+
+  blockdiag {
+    RuntimeEntry -> DartVM
+    DartVM -> Code -> Stubs
+    Stubs -> RuntimeEntry
+
+    group {
+      label="VM Runtime"
+      DartVM; RuntimeEntry;
+    }
+
+    group {
+      label="execution"
+      Code; Stubs;
+    }
+ }
+
 
 OptimizeInvokedFunction
 ===============================================================================
@@ -185,11 +212,11 @@ runtime/vm/code_generator.cc::OptimizedInvokedFunction ::
 runtime/vm/compiler.cc ::
 
   RawError* Compiler::CompileOptimizedFunction(const Function& function) {
-    return CompileFunctionHelper(function, true);  // Optimized.
+    return CompileFunctionHelper(function, true);  // Optimized.   // 最適化を指示
   }
 
   static RawError* CompileFunctionHelper(const Function& function,
-                                         bool optimized) {
+                                         bool optimized) {         // 最適化フラグ。
     ...
     if (setjmp(*jump.Set()) == 0) {
       TIMERSCOPE(time_compilation);
@@ -204,14 +231,50 @@ runtime/vm/compiler.cc ::
                   function.ToFullyQualifiedCString(),
                   function.token_pos());
       }
-      Parser::ParseFunction(parsed_function); // ソースコードをASTに変換
+      Parser::ParseFunction(parsed_function);                       // ソースコードをASTに変換
       parsed_function->AllocateVariables();
 
       const bool success =
-          CompileParsedFunctionHelper(*parsed_function, optimized); //コンパイル
+          CompileParsedFunctionHelper(*parsed_function, optimized); //JITコンパイル
 
+CompileFunction
+===============================================================================
+
+概要で説明したStaticCallも、Dart VMのRuntimeEntryになります。
+
+PatchSaticCallからは、JITコンパイル(非最適化)である、CompileFunction()でコンパイルします。
+
+runtime/vm/code_generator.cc ::
+
+  DEFINE_RUNTIME_ENTRY(PatchStaticCall, 0) {
+    FlowGraphPrinter::Printf("callee RUNTIME_ENTRY PatchStaticCall()\n");
+    ASSERT(arguments.ArgCount() == kPatchStaticCallRuntimeEntry.argument_count());
+    DartFrameIterator iterator;
+    StackFrame* caller_frame = iterator.NextFrame();
+    ASSERT(caller_frame != NULL);
+    const Code& caller_code = Code::Handle(caller_frame->LookupDartCode());
+    ASSERT(!caller_code.IsNull());
+    const Function& target_function = Function::Handle(
+        caller_code.GetStaticCallTargetFunctionAt(caller_frame->pc())); // callerごとに辞書を持っている。
+    if (!target_function.HasCode()) {                                   // JITコンパイルされていない。
+      const Error& error =
+          Error::Handle(Compiler::CompileFunction(target_function));    // JITコンパイル
+      if (!error.IsNull()) {
+        Exceptions::PropagateError(error);
+      }
+    }
+
+JITコンパイル(非最適化)とJITコンパイル(最適化)は、optimizedフラグで識別し、
+入り口は同じ、CompileFunctionHelper()になります。
+
+runtime/vm/compiler.cc ::
+
+  RawError* Compiler::CompileFunction(const Function& function) {
+    return CompileFunctionHelper(function, false);  // Non-optimized. // 非最適化を指示
+  }
 
 まとめ
 ===============================================================================
 (1) StubInvokedFunctino経由で、DartVMのJITコンパイルを呼ぶ。
-(2) ここまでシングルスレッドでシーケンシャルに実行。
+(2) JITコンパイルはシングルスレッドでシーケンシャルに実行。
+(3) JITコンパイルされたコードは、Stubs経由でRuntimeEntryを呼び出し、VMと連携する。
