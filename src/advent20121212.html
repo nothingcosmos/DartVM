@@ -1,0 +1,345 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/12 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/11" href="advent20121211.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/12</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121211.html">Dart VM Advent Calendar 2012 12/11</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-12">
+<h1>Dart VM Advent Calendar 2012 12/12<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-12" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="jit">
+<h2>JITコンパイルの概要<a class="headerlink" href="#jit" title="Permalink to this headline">¶</a></h2>
+<p>JITコンパイルのメイン処理は、CompileParsedFunctionHelperです。</p>
+<p>エラー処理などはばっさり省略してコードを引用しています。</p>
+<p>runtime/vm/compiler.cc</p>
+<div class="highlight-python"><pre>// Return false if bailed out.
+static bool CompileParsedFunctionHelper(const ParsedFunction&amp; parsed_function,
+                                        bool optimized) {
+
+  bool is_compiled = false;
+  Isolate* isolate = Isolate::Current();</pre>
+</div>
+<p>JITコンパイルの入り口です。</p>
+<p>入力は、ASTに変換されたParsedFunctionです。</p>
+<p>TypeFeedback</p>
+<div class="highlight-python"><pre>FlowGraph* flow_graph = NULL;
+if (optimized) {
+  ASSERT(parsed_function.function().HasCode());
+  FlowGraphPrinter::Printf("path optimized\n");
+  // Extract type feedback before the graph is built, as the graph
+  // builder uses it to attach it to nodes.
+  // Do not use type feedback to optimize a function that was
+  // deoptimized too often.
+  if (parsed_function.function().deoptimization_counter() &lt;
+      FLAG_deoptimization_counter_threshold) {
+    const Code&amp; unoptimized_code =
+          Code::Handle(parsed_function.function().unoptimized_code());
+    isolate-&gt;set_ic_data_array(
+          unoptimized_code.ExtractTypeFeedbackArray());
+  }
+}</pre>
+</div>
+<p>Dart VMは、非最適化のコードを実行中に、InlineCacheのcalleeごとに型情報を収集します。</p>
+<p>最適化する場合は、実行時に収集した、TypeFeedbackArrayを取得します。</p>
+<p>共通のコンパイル処理</p>
+<div class="highlight-python"><pre>// Build the flow graph.
+FlowGraphBuilder builder(parsed_function);
+flow_graph = builder.BuildGraph(FlowGraphBuilder::kNotInlining,
+                                0);  // The initial loop depth is zero.</pre>
+</div>
+<p>ASTから中間表現に変換して、FlowGraphを生成します。</p>
+<p>最適化JITコンパイルの場合、以降の様々な最適化により、高速な命令に置き換えられていきます。</p>
+</div>
+<div class="section" id="id1">
+<h2>JITコンパイラの最適化<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>最適化オプションが指定されていた場合、以下の処理で中間表現を最適化します。</p>
+<p>最適化JITコンパイルのパス</p>
+<div class="highlight-python"><pre>if (optimized) {                                // 最適化オプション
+  // Transform to SSA (virtual register 0 and no inlining arguments).
+  flow_graph-&gt;ComputeSSA(0, NULL);              // definevalueのnumberを振りなおす。Phiの生成。
+}
+
+if (optimized) {
+  flow_graph-&gt;ComputeUseLists();                // def-useチェインの再計算。
+
+  FlowGraphOptimizer optimizer(flow_graph);
+  optimizer.ApplyICData();                      // 全IRをvisitorで走査して、型付けと高速な中間表現への置換を行う。
+
+  // Compute the use lists.
+  flow_graph-&gt;ComputeUseLists();                // def-useチェインの再計算。</pre>
+</div>
+<p>最適化JITコンパイラの中間表現はSSA形式であるため、最初にSSA形式用のフィールドを書き換えます。</p>
+<p>その後、Optimizerを生成し、どんどん最適化します。</p>
+<p>Inline展開</p>
+<div class="highlight-python"><pre>// Inlining (mutates the flow graph)
+if (FLAG_use_inlining) {
+  FlowGraphInliner inliner(flow_graph);
+  inliner.Inline();
+  // Use lists are maintained and validated by the inliner.
+}</pre>
+</div>
+<p>中間表現レベルでインライン展開を行います。</p>
+<p>実際には、呼び出し先の関数をASTからIRに変換し、FlowGraphを生成します。</p>
+<p>その後、FlowGraphの親と子を連結して、1つの大きなGraphにしてしまいます。</p>
+<p>JITコンパイルの各種最適化</p>
+<div class="highlight-python"><pre>  // Propagate types and eliminate more type tests.
+  if (FLAG_propagate_types) {
+    FlowGraphTypePropagator propagator(flow_graph);
+    propagator.PropagateTypes();  // 型情報を後方に伝搬します。
+  }
+
+  // Propagate sminess from CheckSmi to phis.
+  optimizer.PropagateSminess();   // 型情報を元に、不要なCheckSmiを畳み込みます。
+
+  // Use propagated class-ids to optimize further.
+  optimizer.ApplyClassIds();      // 型情報を元に、InstanceCallを高速なcallに置き換えます。
+
+  // Do optimizations that depend on the propagated type information.
+  // TODO(srdjan): Should this be called CanonicalizeComputations?
+  optimizer.OptimizeComputations(); // 型情報を元に、命令の融合と高速な中間表現への置換を行います。
+
+  // Unbox doubles.
+  flow_graph-&gt;ComputeUseLists();
+  optimizer.SelectRepresentations();  // 型情報を元に、Guardの挿入とUnboxing(DoubleとMintとSmi)を行います。
+
+  if (FLAG_constant_propagation ||
+      FLAG_common_subexpression_elimination) {
+    flow_graph-&gt;ComputeUseLists();    // def-useリストを再計算
+  }
+  if (FLAG_constant_propagation) {
+    ConstantPropagator::Optimize(flow_graph);
+    // A canonicalization pass to remove e.g. smi checks on smi constants.
+    optimizer.OptimizeComputations(); // 定数伝搬を行います。
+  }
+  if (FLAG_common_subexpression_elimination) {
+    if (DominatorBasedCSE::Optimize(flow_graph)) { // GVN1回目です。共通な中間表現を畳み込みます。
+      // Do another round of CSE to take secondary effects into account:
+      // e.g. when eliminating dependent loads (a.x[0] + a.x[0])
+      // TODO(fschneider): Change to a one-pass optimization pass.
+      DominatorBasedCSE::Optimize(flow_graph);  // GVN2回目です。
+    }
+  }
+  if (FLAG_loop_invariant_code_motion &amp;&amp;
+      (parsed_function.function().deoptimization_counter() &lt;
+       (FLAG_deoptimization_counter_threshold - 1))) {
+    LICM::Optimize(flow_graph);       // ループ不変式の移動を行います。
+  }
+
+  if (FLAG_range_analysis) {
+    // We have to perform range analysis after LICM because it
+    // optimistically moves CheckSmi through phis into loop preheaders
+    // making some phis smi.
+    flow_graph-&gt;ComputeUseLists();    // def-useリストを再計算
+    optimizer.InferSmiRanges();       // 値のレンジ解析を行います。
+  }
+
+  // Perform register allocation on the SSA graph.
+  FlowGraphAllocator allocator(*flow_graph);
+  allocator.AllocateRegisters();      // 各中間表現のin,outルールを参照し、LinearScanレジスタ割付を行います。
+}</pre>
+</div>
+<p>Dart VMの最適化JITコンパイルの特徴は、中間表現のまま、レジスタ割付を行っているところだと思います</p>
+<p>共通のCompile処理</p>
+<div class="highlight-python"><pre>Assembler assembler;
+FlowGraphCompiler graph_compiler(&amp;assembler,
+                                 *flow_graph,
+                                 optimized);
+{
+  graph_compiler.CompileGraph(); //機種依存のCompileGraphを呼び出します。
+}</pre>
+</div>
+<p>非最適化、最適化共通のコンパイル処理です。</p>
+<p>基本的には、FlowGraphをvisitして、各種中間表現のEmitを叩いてアセンブラを生成します。</p>
+<p>コンパイル後の処理</p>
+<div class="highlight-python"><pre>{
+  const Function&amp; function = parsed_function.function();
+  const Code&amp; code = Code::Handle(
+      Code::FinalizeCode(function, &amp;assembler, optimized)); // アセンブルして、Code領域に書き込みます。
+  code.set_is_optimized(optimized);
+  graph_compiler.FinalizePcDescriptors(code);
+  graph_compiler.FinalizeDeoptInfo(code);
+  graph_compiler.FinalizeStackmaps(code);
+  graph_compiler.FinalizeVarDescriptors(code);
+  graph_compiler.FinalizeExceptionHandlers(code);
+  graph_compiler.FinalizeComments(code);
+  graph_compiler.FinalizeStaticCallTargetsTable(code);
+  if (optimized) {                                  // JITコンパイルしたコードを設定します。
+    CodePatcher::PatchEntry(Code::Handle(function.CurrentCode()));
+    function.SetCode(code);
+  } else {
+    function.set_unoptimized_code(code);
+    function.SetCode(code);
+  }
+}</pre>
+</div>
+</div>
+<div class="section" id="id2">
+<h2>JITコンパイラの構成<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<table border="1" class="docutils">
+<caption>コンパイラの規模</caption>
+<colgroup>
+<col width="43%" />
+<col width="14%" />
+<col width="43%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">file</th>
+<th class="head">line</th>
+<th class="head">overview</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>flow_graph</td>
+<td>1.3k</td>
+<td>FlowGraphの構造と操作を定義、中間表現のTOP Context</td>
+</tr>
+<tr class="row-odd"><td>flow_graph_builder</td>
+<td>3.3k</td>
+<td>ASTから中間表現に変換し、FlowGraphを生成する。</td>
+</tr>
+<tr class="row-even"><td>flow_graph_compiler</td>
+<td>1.2k</td>
+<td>コンパイラの機種非依存、共通処理</td>
+</tr>
+<tr class="row-odd"><td>flow_graph_compiler_ia32</td>
+<td>2k</td>
+<td>機種依存の最適化Stub生成と、コンパイルの主制御</td>
+</tr>
+<tr class="row-even"><td>flow_graph_inliner</td>
+<td>0.8k</td>
+<td>inline展開</td>
+</tr>
+<tr class="row-odd"><td>flow_graph_optimizer</td>
+<td>4.2k</td>
+<td>各種最適化</td>
+</tr>
+<tr class="row-even"><td>flow_graph_allocator</td>
+<td>3.2k</td>
+<td>レジスタ割付</td>
+</tr>
+</tbody>
+</table>
+<p>以下は、2012/12/12のパフォーマンススコアのグラフです。</p>
+<p>DeltaBlueベンチマークにおける、Dart VM と V8の比較だそうです。</p>
+<p>詳細は以下</p>
+<p><a class="reference external" href="http://news.dartlang.org/2012/12/dart-vm-improves-performance-by-50.html">http://news.dartlang.org/2012/12/dart-vm-improves-performance-by-50.html</a></p>
+<img alt="../images/dart_optimize.png" src="../images/dart_optimize.png" />
+<p>上記のグラフで、5月から10月頃まで性能が急上昇していますが、</p>
+<p>その頃にFlowGraphファミリーが作成されていました。すごいですね。。</p>
+<p>ちなみに、8月末の急上昇は、SmiやDoubleをUnboxingしてBinaryInstrに置換するRepresentationの追加です。</p>
+<p>9月中の急上昇は、inline展開の実装です。一回どんと上がってあとDisableになって、もっかいどんと上がってますので。</p>
+<table border="1" class="docutils">
+<caption>中間表現の規模</caption>
+<colgroup>
+<col width="43%" />
+<col width="14%" />
+<col width="43%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">file</th>
+<th class="head">line</th>
+<th class="head">overview</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>intermediate_language</td>
+<td>7k</td>
+<td>中間表現の機種非依存部分を定義</td>
+</tr>
+<tr class="row-odd"><td>intermediate_language_ia32.cc</td>
+<td>2806</td>
+<td>ia32用の中間表現の実装、主にEmittorの定義。</td>
+</tr>
+</tbody>
+</table>
+<p>中間表現は、機種非依存と機種依存に分かれています。</p>
+<p>機種依存のほうには、主に中間表現からアセンブラ命令にEmitする処理と、レジスタ割付時のルールが記述されています。</p>
+</div>
+<div class="section" id="id3">
+<h2>まとめ<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>JITコンパイラは1つ。中間表現は、非最適化向けIRと最適化向けIRが定義されている。</li>
+<li>最適化パスを実行して各種最適化を行う。</li>
+<li>JITコンパイラと中間表現は、各アーキテクチャごとに定義する。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121211.html">Dart VM Advent Calendar 2012 12/11</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
