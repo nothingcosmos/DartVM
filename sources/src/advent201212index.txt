@@ -15,6 +15,7 @@ Dart VM index
   advent20121210
   advent20121211
   advent20121212
+  advent20121213
 
 努力目標
 ===============================================================================
@@ -31,6 +32,7 @@ Dart VM index
 - Dart VMのGC overview
 - ExecutionCodeとRuntimeの連携
 - FlowGraphCompiler overview
+- Benchmark & performance tuning
 
 候補
 
@@ -43,7 +45,7 @@ Dart VM index
 - Dart VMのGC Scavenger
 - Dart VMのGC Mark&Sweep
 - Dart VMのGC Root Reference & Handles
-- Dart VMのGC Extended Weak, Peer, External, old->new pointers
+- Dart VMのGC Extended, Weak, Peer, External, old->new pointers
 - OptionalTypes1 (dynamic)
 - OptionalTypes2 (generics)
 - FlowGraphCompiler2 intermediate representation
@@ -53,7 +55,6 @@ Dart VM index
 - FlowGraphCompiler6 inlining
 - FlowGraphCompiler7 register allocation
 - Dart VM Native extension
-- Benchmark & performance tuning
 - Message passing & Snapshot
 - InlineCaching & Stubs
 - intrinsics1 scalarlist
