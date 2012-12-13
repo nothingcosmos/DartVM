@@ -1,0 +1,217 @@
+Dart VM Advent Calendar 2012 12/11
+###############################################################################
+
+Dart VMのレイヤー
+===============================================================================
+dart:scalarlistパッケージを元に、DartのAPiが、Dart VMでどのように処理されているのかを追います。
+
+scalarlist
+===============================================================================
+
+元ソースです。 scalarlistをインポートして、Flaot64Listを使用しています。
+
+scalarlist add::
+
+  #import 'dart:scalarlist';
+
+  Double add(Float64List l, Float64List r, int index) {
+    return l[index] + r[index];
+  }
+
+scalarlistというのは、Scalar値をメモリ上にシーケンシャルに敷き詰めるListである。
+
+普通のList<>と比較して速いAPIです。私の場合はよくFloat64Listを使います。
+
+インターフェースはList<double>とほぼ同じなのですが、scalarlistのFloat64Listのほうが高速です。
+
+dart/lib/scalarlist/scalarlist.dart ::
+
+  #source('byte_arrays.dart');
+
+byte_arraysっていうdartのソースコードをインポートしている。
+
+dart/lib/scalarlist/byte_arrays.dart ::
+
+  abstract class Float64List implements List<double>, ByteArrayViewable {
+
+dart/runtime/lib/byte_array.dart ::
+
+  patch class Float64List {
+    /* patch */ factory Float64List(int length) {
+      return new _Float64Array(length);               // Float64Array ですから。
+    }
+
+  class _Float64Array extends _ByteArrayBase implements Float64List {
+  ...
+
+    double operator[](int index) {
+      return _getIndexed(index);
+    }
+
+    int operator[]=(int index, double value) {
+      _setIndexed(index, value);
+    }
+
+    double _getIndexed(int index) native "Float64Array_getIndexed";
+    int _setIndexed(int index, double value) native "Float64Array_setIndexed";
+  }
+
+ここで、sdkから、runtime/libを参照しています。
+
+ここからちょっと特殊で、[]や[]=から、_getIndexedや_setIndexedを経由してnativeな実装を参照します。
+
+nativeというキーワードは、dartのsyntaxで、native extention機能になります。
+
+JVMのJNIみたいなもんですね。Dartから、C/C++で実装されたコードを参照できます。
+
+
+byte_array.cc
+===============================================================================
+
+ここからはC++の世界です。。ここからが本当の、、、
+
+dart/runtime/lib/byte_array.cc ::
+
+  DEFINE_NATIVE_ENTRY(Float64Array_getIndexed, 2) {
+    GETTER(Float64Array, Double, double);
+  }
+
+  DEFINE_NATIVE_ENTRY(Float64Array_setIndexed, 3) {
+    SETTER(Float64Array, Double, value, double);
+  }
+
+  #define GETTER(ArrayT, ObjectT, ValueT)                                 \
+    GETTER_ARGUMENTS(ArrayT, ValueT);                                     \
+    RangeCheck(array, index.Value() * sizeof(ValueT), sizeof(ValueT));    \
+    ValueT result = array.At(index.Value());                              \
+    return ObjectT::New(result);
+  
+  #define SETTER(ArrayT, ObjectT, Getter, ValueT)                         \
+    SETTER_ARGUMENTS(ArrayT, ObjectT, ValueT);                            \
+    RangeCheck(array, index.Value() * sizeof(ValueT), sizeof(ValueT));    \
+    ValueT value = value_object.Getter();                                 \
+    array.SetAt(index.Value(), value);                                    \
+    return Object::null();
+
+  #define GETTER_ARGUMENTS(ArrayT, ValueT)                                \
+    GET_NATIVE_ARGUMENT(ArrayT, array, arguments->NativeArgAt(0));        \
+    GET_NATIVE_ARGUMENT(Smi, index, arguments->NativeArgAt(1));
+  
+  #define SETTER_ARGUMENTS(ArrayT, ObjectT, ValueT)                       \
+    GET_NATIVE_ARGUMENT(ArrayT, array, arguments->NativeArgAt(0));        \
+    GET_NATIVE_ARGUMENT(Smi, index, arguments->NativeArgAt(1));           \
+    GET_NATIVE_ARGUMENT(ObjectT, value_object, arguments->NativeArgAt(2));
+
+おれは、C++のコードだと思ってファイルを開いたと思ったら、全部マクロだった。。
+
+dart/runtime/vm/native_entry.h ::
+
+  #define NATIVE_ENTRY_FUNCTION(name) BootstrapNatives::DN_##name
+
+  #define DEFINE_NATIVE_ENTRY(name, argument_count)                              \
+    static RawObject* DN_Helper##name(Isolate* isolate,                          \
+                                      NativeArguments* arguments);               \
+    void NATIVE_ENTRY_FUNCTION(name)(Dart_NativeArguments args) {                \
+      CHECK_STACK_ALIGNMENT;                                                     \
+      VERIFY_ON_TRANSITION;                                                      \
+      NativeArguments* arguments = reinterpret_cast<NativeArguments*>(args);     \
+      ASSERT(arguments->NativeArgCount() == argument_count);                     \
+      if (FLAG_trace_natives) OS::Print("Calling native: %s\n", ""#name);        \
+      {                                                                          \
+        StackZone zone(arguments->isolate());                                    \
+        HANDLESCOPE(arguments->isolate());                                       \
+        arguments->SetReturnUnsafe(                                              \
+            DN_Helper##name(arguments->isolate(), arguments));                   \
+        if (FLAG_deoptimize_alot) DeoptimizeAll();                               \
+      }                                                                          \
+      VERIFY_ON_TRANSITION;                                                      \
+    }                                                                            \
+    static RawObject* DN_Helper##name(Isolate* isolate,                          \
+                                      NativeArguments* arguments)
+
+うわああああああああああ。。。
+
+とりあえずみなかったことにして、runtime/vmの下を、Flaot64Arrayでgrepしてみるお。
+
+ポイントとなるシンボルは、BootstrapNatives
+
+dart/runtime/vm/bootstrap_natives.h ::
+
+  // List of bootstrap native entry points used in the core dart library.
+  #define BOOTSTRAP_NATIVE_LIST(V)                                               \
+  ...
+    V(Float64Array_new, 1)                                                       \
+    V(Float64Array_newTransferable, 1)                                           \
+    V(Float64Array_getIndexed, 2)                                                \
+    V(Float64Array_setIndexed, 3)                                                \
+  ...
+
+  class BootstrapNatives : public AllStatic {
+    public:
+      static Dart_NativeFunction Lookup(Dart_Handle name, int argument_count);
+
+  #define DECLARE_BOOTSTRAP_NATIVE(name, ignored)                                \
+    static void DN_##name(Dart_NativeArguments args);
+
+    BOOTSTRAP_NATIVE_LIST(DECLARE_BOOTSTRAP_NATIVE)
+
+  #undef DECLARE_BOOTSTRAP_NATIVE
+  };
+
+マクロでstatic DN_XXX(...)という関数を大量に宣言します。
+
+こういうマクロはLLVMやJVMでも登場するので、、コンパイラ業界では一般的なテクニックなのだと思います。
+
+
+
+scalarlist add::
+
+  Double add(Float64List l, Float64List r, int index) {
+    return l[index] + r[index];
+  }
+
+addの中間表現 ::
+
+  CheckStackOverflow:2()
+  t0 <- LoadLocal:3(l lvl:0)
+  PushArgument:4(t0)
+  t0 <- LoadLocal:5(index lvl:0)
+  PushArgument:6(t0)
+  t0 <- InstanceCall:7([], t0, t0)
+  PushArgument:8(t0)
+  t0 <- LoadLocal:9(r lvl:0)
+  PushArgument:10(t0)
+  t0 <- LoadLocal:11(index lvl:0)
+  PushArgument:12(t0)
+  t0 <- InstanceCall:13([], t0, t0)
+  PushArgument:14(t0)
+  t0 <- InstanceCall:15(+, t0, t0)
+  Return:16(t0)
+
+
+
+
+call vm api from dart api
+call dart api from vm
+
+DartAPi
+dart_api_impl
+class Api
+
+RUNTIME_ENTRY
+
+
+stubs
+
+
+
+Generate
+
+
+CallRuntime
+
+
+Heap
+GC
+
+JITCompiler

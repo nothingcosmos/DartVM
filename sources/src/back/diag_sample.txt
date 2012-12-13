@@ -1,0 +1,90 @@
+blockdiag sample
+===============================================================================
+
+.. blockdiag::
+
+  blockdiag {
+     A -> B -> C -> D;
+        A -> E -> F -> G;
+  }
+
+nwdiag sample
+===============================================================================
+
+.. nwdiag::
+
+  nwdiag {
+  //comment
+  network {
+  A [address = 192.168.0.1, description = "web server01"];
+  B [address = 192.168.0.2, description = "web server02"];
+  }
+  network {
+  A [address = 172.0.0.1];
+  C [address = 172.0.0.2, description = "database server"];
+  }
+  }
+
+.. rackdiag::
+
+  rackdiag {
+    16U;
+
+    1: UPS [2U];
+    3: DB Server
+    4: Web Server
+    5: Web Server
+    6: Web Server
+    7: Load Balancer
+    8: L3 Switch
+  }
+
+
+
+.. rackdiag::
+
+  rackdiag {
+    // define height of rack
+    16U;
+
+    // define rack items
+    1: UPS [2U];
+    3: DB Server
+    4: Web Server
+    5: Web Server
+    6: Web Server
+    7: Load Balancer
+    8: L3 Switch
+  }
+
+.. nwdiag::
+
+  rackdiag {
+    // define 1st rack
+    rack {
+      16U;
+      // define rack items
+      1: UPS [2U];
+      3: DB Server
+      4: Web Server
+      5: Web Server
+      6: Web Server
+      7: Load Balancer
+      8: L3 Switch
+    }
+
+    // define 2nd rack
+    rack {
+      12U;
+
+      // define rack items
+      1: UPS [2U];
+      3: DB Server
+      4: Web Server
+      5: Web Server
+      6: Web Server
+      7: Load Balancer
+      8: L3 Switch
+    }
+  }
+

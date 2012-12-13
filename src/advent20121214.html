@@ -1,0 +1,525 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/14 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/13" href="advent20121213.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/14</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121213.html">Dart VM Advent Calendar 2012 12/13</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-14">
+<h1>Dart VM Advent Calendar 2012 12/14<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-14" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dart-vmir">
+<h2>Dart VMのIRに関して<a class="headerlink" href="#dart-vmir" title="Permalink to this headline">¶</a></h2>
+<p>JVMやLLVMは、中間表現であるBytecodeやBitcodeを入力としていますが、Dart VMの場合、入力はDartのソースコードです。</p>
+<p>JITコンパイル時にIRは存在しますが、BytecodeやBitcodeのような用途を目指して、IRは定義されていません。</p>
+<p>JITコンパイルする際に、DartのソースコードをASTに変換し、IRに変換し、最終的に実行用のコードを生成します。</p>
+<p>その後、JITコンパイルされたコードを実行します。
+実行時に生成するオブジェクトが、ObjectとRawObjectになります。</p>
+<ul class="simple">
+<li>AST        抽象構文木 (Abstract Syntax Tree)</li>
+<li>IR         中間表現 (Intermediate Representation)</li>
+<li>Object     実行時のオブジェクト、操作や内部状態を定義し、RawObjectを参照する。</li>
+<li>RawObject  実行時のオブジェクト、生データと生データ管理フラグを定義する。</li>
+</ul>
+<p>JITコンパイルは、Dartのソースコードを入力としますが、中間成果物であるIRは、実行用のコードを生成した後、
+不要になるため捨てます。</p>
+<p>ASTは、関数に紐づいてキャッシュされていたかも。</p>
+</div>
+<div class="section" id="id1">
+<h2>Dart VMのIR<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>以下に示すのが、全IRだったきがします。</p>
+<p>IRのダンプがみたい場合は、&#8211;print-flow-graphを指定すればOKです。</p>
+<p>Dart VMのIRは、FlowGraphの各Nodeを構成します。</p>
+<p>runtime/vm/intermediate_language.h</p>
+<div class="highlight-python"><pre>// Instructions.
+// M is a single argument macro.  It is applied to each concrete instruction
+// type name.  The concrete instruction classes are the name with Instr
+// concatenated.
+#define FOR_EACH_INSTRUCTION(M)                                                \
+  M(GraphEntry)                                                                \
+  M(JoinEntry)                                                                 \
+  M(TargetEntry)                                                               \
+  M(Phi)                                                                       \
+  M(Parameter)                                                                 \
+  M(ParallelMove)                                                              \
+  M(PushArgument)                                                              \
+  M(Return)                                                                    \
+  M(Throw)                                                                     \
+  M(ReThrow)                                                                   \
+  M(Goto)                                                                      \
+  M(Branch)                                                                    \
+  M(AssertAssignable)                                                          \
+  M(AssertBoolean)                                                             \
+  M(ArgumentDefinitionTest)                                                    \
+  M(CurrentContext)                                                            \
+  M(StoreContext)                                                              \
+  M(ClosureCall)                                                               \
+  M(InstanceCall)                                                              \
+  M(PolymorphicInstanceCall)                                                   \
+  M(StaticCall)                                                                \
+  M(LoadLocal)                                                                 \
+  M(StoreLocal)                                                                \
+  M(StrictCompare)                                                             \
+  M(EqualityCompare)                                                           \
+  M(RelationalOp)                                                              \
+  M(NativeCall)                                                                \
+  M(LoadIndexed)                                                               \
+  M(StoreIndexed)                                                              \
+  M(StoreInstanceField)                                                        \
+  M(LoadStaticField)                                                           \
+  M(StoreStaticField)                                                          \
+  M(BooleanNegate)                                                             \
+  M(InstanceOf)                                                                \
+  M(CreateArray)                                                               \
+  M(CreateClosure)                                                             \
+  M(AllocateObject)                                                            \
+  M(AllocateObjectWithBoundsCheck)                                             \
+  M(LoadField)                                                                 \
+  M(StoreVMField)                                                              \
+  M(InstantiateTypeArguments)                                                  \
+  M(ExtractConstructorTypeArguments)                                           \
+  M(ExtractConstructorInstantiator)                                            \
+  M(AllocateContext)                                                           \
+  M(ChainContext)                                                              \
+  M(CloneContext)                                                              \
+  M(CatchEntry)                                                                \
+  M(BinarySmiOp)                                                               \
+  M(UnarySmiOp)                                                                \
+  M(CheckStackOverflow)                                                        \
+  M(SmiToDouble)                                                               \
+  M(DoubleToInteger)                                                           \
+  M(CheckClass)                                                                \
+  M(CheckSmi)                                                                  \
+  M(Constant)                                                                  \
+  M(CheckEitherNonSmi)                                                         \
+  M(BinaryDoubleOp)                                                            \
+  M(MathSqrt)                                                                  \
+  M(UnboxDouble)                                                               \
+  M(BoxDouble)                                                                 \
+  M(UnboxInteger)                                                              \
+  M(BoxInteger)                                                                \
+  M(BinaryMintOp)                                                              \
+  M(ShiftMintOp)                                                               \
+  M(UnaryMintOp)                                                               \
+  M(CheckArrayBound)                                                           \
+  M(Constraint)                                                                \
+  M(StringCharCodeAt)                                                          \
+  M(StringFromCharCode)</pre>
+</div>
+<p>最適化の過程では、各Nodeをさらに高速なNodeに置き換えていきます。</p>
+<p>たくさんあるIRですが、種類に応じて分けることができます。</p>
+<p>例えば、非最適化時のIR、最適化時のIR、組み込み関数用のIRなどです。</p>
+<ul class="simple">
+<li>control     コントロールフローを制御するIR</li>
+<li>common      非最適化、最適化に共通</li>
+<li>optimize    最適化されたIR</li>
+<li>deoptimize  脱最適化用IR</li>
+<li>intrinsic   組み込みIR</li>
+<li>checked     checked mode用IR</li>
+</ul>
+<p>試しにちょっと分けてみますか。よくわからないものはcommonにしています。</p>
+<table border="1" class="docutils">
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">IR</th>
+<th class="head">type</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>GraphEntry</td>
+<td>control</td>
+</tr>
+<tr class="row-odd"><td>JoinEntry</td>
+<td>control</td>
+</tr>
+<tr class="row-even"><td>TargetEntry</td>
+<td>control</td>
+</tr>
+<tr class="row-odd"><td>Phi</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>Parameter</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>ParallelMove</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>PushArgument</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>Return</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>Throw</td>
+<td>control</td>
+</tr>
+<tr class="row-odd"><td>ReThrow</td>
+<td>control</td>
+</tr>
+<tr class="row-even"><td>Goto</td>
+<td>control</td>
+</tr>
+<tr class="row-odd"><td>Branch</td>
+<td>control</td>
+</tr>
+<tr class="row-even"><td>AssertAssignable</td>
+<td>checked</td>
+</tr>
+<tr class="row-odd"><td>AssertBoolean</td>
+<td>checked</td>
+</tr>
+<tr class="row-even"><td>ArgumentDefinitionTest</td>
+<td>checked</td>
+</tr>
+<tr class="row-odd"><td>CurrentContext</td>
+<td>commont</td>
+</tr>
+<tr class="row-even"><td>StoreContext</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>ClosureCall</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>InstanceCall</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>PolymorphicInstanceCall</td>
+<td>optimie</td>
+</tr>
+<tr class="row-even"><td>StaticCall</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>LoadLocal</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>StoreLocal</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>StrictCompare</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>EqualityCompare</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>RelationalOp</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>NativeCall</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>LoadIndexed</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>StoreIndexed</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>StoreInstanceField</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>LoadStaticField</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>StoreStaticField</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>BooleanNegate</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>InstanceOf</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>CreateArray</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>CreateClosure</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>AllocateObject</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>AllocateObjectWithBoundsCheck</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>LoadField</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>StoreVMField</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>InstantiateTypeArguments</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>ExtractConstructorTypeArguments</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>ExtractConstructorInstantiator</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>AllocateContext</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>ChainContext</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>CloneContext</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>CatchEntry</td>
+<td>control</td>
+</tr>
+<tr class="row-odd"><td>BinarySmiOp</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>UnarySmiOp</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>CheckStackOverflow</td>
+<td>common</td>
+</tr>
+<tr class="row-even"><td>SmiToDouble</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>DoubleToInteger</td>
+<td>intrinsic</td>
+</tr>
+<tr class="row-even"><td>CheckClass</td>
+<td>deoptimize</td>
+</tr>
+<tr class="row-odd"><td>CheckSmi</td>
+<td>deoptimize</td>
+</tr>
+<tr class="row-even"><td>Constant</td>
+<td>common</td>
+</tr>
+<tr class="row-odd"><td>CheckEitherNonSmi</td>
+<td>deoptimize</td>
+</tr>
+<tr class="row-even"><td>BinaryDoubleOp</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>MathSqrt</td>
+<td>intrinsic</td>
+</tr>
+<tr class="row-even"><td>UnboxDouble</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>BoxDouble</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>UnboxInteger</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>BoxInteger</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>BinaryMintOp</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>ShiftMintOp</td>
+<td>optimize</td>
+</tr>
+<tr class="row-even"><td>UnaryMintOp</td>
+<td>optimize</td>
+</tr>
+<tr class="row-odd"><td>CheckArrayBound</td>
+<td>deoptimize</td>
+</tr>
+<tr class="row-even"><td>Constraint</td>
+<td>optmize</td>
+</tr>
+<tr class="row-odd"><td>StringCharCodeAt</td>
+<td>intrinsic</td>
+</tr>
+<tr class="row-even"><td>StringFromCharCode</td>
+<td>intrinsic</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="section" id="ir">
+<h2>IRの継承関係<a class="headerlink" href="#ir" title="Permalink to this headline">¶</a></h2>
+<img alt="../images/inherit_graph.png" src="../images/inherit_graph.png" />
+<p>膨大な継承図ですね。。</p>
+<p>特徴は、すべてZoneAllocatedクラスを継承していることです。</p>
+<p>ZoneAllocatedクラスは、一時的な領域確保用のオブジェクトで、特定のscope(zone)中に生存するオブジェクトです。</p>
+<p>特定のzoneの間のみ、例えばコンパイル中のみ生存するIRは、ZoneAllocatedを継承するものが多いです。</p>
+<p>特定のzoneを抜けた場合は、ZoneHandleがRAIIに則って、Handleに関連づいた全ZoneAllocatedクラスを一斉開放します。</p>
+<p>ZoneAllocatedクラスを継承するクラスは、ASTNodeの子クラスと、Instructionの子クラスが多いですね。</p>
+<p>ASTNodeは、dartのソースコードをParseして、ASTの各Nodeになります。</p>
+<p>さらに、JITコンパイルが進むと、ASTからIRに変換し、最適化を行った後、
+Emitしてアセンブラコードを生成します。</p>
+<p>IRはコンパイルが終わったら、一斉に破棄されるはずです。</p>
+<p>ASTは何度もコンパイルされる可能性があるため、関数に紐づいてキャッシュされたような気がします。</p>
+</div>
+<div class="section" id="id2">
+<h2>IRの構成<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<table border="1" class="docutils">
+<colgroup>
+<col width="50%" />
+<col width="50%" />
+</colgroup>
+<thead valign="bottom">
+<tr class="row-odd"><th class="head">src</th>
+<th class="head">overview</th>
+</tr>
+</thead>
+<tbody valign="top">
+<tr class="row-even"><td>runtime/vm/intermediate_language.h</td>
+<td>中間表現の定義</td>
+</tr>
+<tr class="row-odd"><td>runtime/vm/intermediate_language.cc</td>
+<td>中間表現の機種非依存の処理の実装</td>
+</tr>
+<tr class="row-even"><td>runtime/vm/intermediate_language_ia32.cc</td>
+<td>機種依存の命令、アセンブラのEmitと、レジスタ割付のルール</td>
+</tr>
+</tbody>
+</table>
+<p>IRには、機種依存を定義する部分があります。</p>
+<p>組み込み命令のIRである、DoubleToIntegerInstrを例に説明します。</p>
+<p>DoubleToIntegerInstrの機種依存定義部</p>
+<div class="highlight-python"><pre>// レジスタ割付ルール
+LocationSummary* DoubleToIntegerInstr::MakeLocationSummary() const {
+  const intptr_t kNumInputs = 1;  // IRをEmitする際のinputとなるレジスタが1つ必要。
+  const intptr_t kNumTemps = 0;   // IRをEmitする間に必要な、tempレジスタ。
+  LocationSummary* result =
+      new LocationSummary(kNumInputs, kNumTemps, LocationSummary::kCall);
+  result-&gt;set_in(0, Location::RegisterLocation(ECX)); // inレジスタとして、ECXを予約。
+  result-&gt;set_out(Location::RegisterLocation(EAX));   // IRをEmit後に生存しているレジスタ。
+  return result;                                      // outレジスタとして、EAXを予約。返値格納用。
+}
+
+// アセンブラのEmitter
+void DoubleToIntegerInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
+  Register result = locs()-&gt;out().reg();              // outレジスタEAXの別名result
+  Register value_obj = locs()-&gt;in(0).reg();           // inレジスタECXの別名value_obj
+  XmmRegister value_double = XMM0;                    // XMM0レジスタもこっそり使用。
+  ASSERT(result == EAX);
+  ASSERT(result != value_obj);                        // Unboxingしてdouble値を取得。
+  __ movsd(value_double, FieldAddress(value_obj, Double::value_offset())); //BoxingされたDouble型のvalue_objから、double値を取得する。
+  __ cvttsd2si(result, value_double);                 // doubleからint32へ変換。XMM0からEAXへ。
+  // Overflow is signalled with minint.
+  Label do_call, done;
+  // Check for overflow and that it fits into Smi.
+  __ cmpl(result, Immediate(0xC0000000));             // Smi型に変換した際にoverflowしないかチェック
+  __ j(NEGATIVE, &amp;do_call, Assembler::kNearJump);     // overflowする場合、do_call(slowpath)へjump
+  __ SmiTag(result);                                  // EAXをSmiTag付けする。 EAX &lt;&lt; 1
+  __ jmp(&amp;done);                                      // 終了。
+  __ Bind(&amp;do_call);                                  // slowpathを定義する。
+  __ pushl(value_obj);                                // push ECX
+  ASSERT(instance_call()-&gt;HasICData());
+  const ICData&amp; ic_data = *instance_call()-&gt;ic_data();// DoubleToIntegerInstrのICを取得。
+  ASSERT((ic_data.NumberOfChecks() == 1));
+  const Function&amp; target = Function::ZoneHandle(ic_data.GetTargetAt(0));
+
+  const intptr_t kNumberOfArguments = 1;
+  compiler-&gt;GenerateStaticCall(instance_call()-&gt;deopt_id(),  // StaticCallでDoubleToIntegerのICを呼び出す
+                               instance_call()-&gt;token_pos(),
+                               target,
+                               kNumberOfArguments,
+                               Array::Handle(),  // No argument names.,
+                               locs());
+  __ Bind(&amp;done);                                     // 終了 return EAX
+}</pre>
+</div>
+<p>上記のDoubleToIntegerInstrの処理をざっくり説明すると、</p>
+<ul class="simple">
+<li>Double型のオブジェクトをUnboxingする。</li>
+<li>double値からint32値へ変換する。</li>
+<li>int32値がSmi型に収まる場合、Smi型に変換する。</li>
+<li>Smi型に収まらない場合、どんな型でも動作するDoubleToIntegerのInlineCacheを呼び出す。</li>
+</ul>
+<p>Emitterは、JITコンパイル時に生成するアセンブラを定義する部分です。</p>
+<p>Emitterは、JITコンパイル時にFlowGraphCompilerによって、Emitterが叩かます。</p>
+<p>IRからアセンブラに変換する際に必要になります。</p>
+</div>
+<div class="section" id="id3">
+<h2>まとめ<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>IRはJITコンパイルが終われば捨てる。</li>
+<li>IRには、機種非依存の定義と機種依存の定義が存在する。</li>
+<li>IRの機種非依存部は、レジスタ割付ルールとEmitterを定義する。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121213.html">Dart VM Advent Calendar 2012 12/13</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
