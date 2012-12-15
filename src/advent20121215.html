@@ -1,0 +1,422 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/15 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/14" href="advent20121214.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/15</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121214.html">Dart VM Advent Calendar 2012 12/14</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-15">
+<h1>Dart VM Advent Calendar 2012 12/15<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-15" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dart-vmcore-api-scalarlist">
+<h2>Dart VMのcore API scalarlist<a class="headerlink" href="#dart-vmcore-api-scalarlist" title="Permalink to this headline">¶</a></h2>
+<p>dartのAPI、特にcoreに用意されたAPIは、Dartのみで記述されることが少なく、
+C++で組み込み関数として記述されることが多いです。</p>
+<p>dart:scalarlistパッケージを元に、DartのAPiが、Dart VMでどのように処理されているのかを追います。</p>
+<p>Float64Listは、かなりチューニングされているので特殊ですが。。</p>
+</div>
+<div class="section" id="scalarlist">
+<h2>scalarlist<a class="headerlink" href="#scalarlist" title="Permalink to this headline">¶</a></h2>
+<p>scalarlistをインポートして、Float64Listを使用しています。</p>
+<p>scalarlist add:</p>
+<div class="highlight-python"><pre>#import 'dart:scalarlist';
+
+addvector2(Float64List ret, Float64List l, Float64List r, int index) {
+  ret[index] = l[index] + r[index];
+}</pre>
+</div>
+<p>scalarlistというのは、scalarをメモリ上にシーケンシャルに敷き詰めるListである。</p>
+<p>普通のList&lt;&gt;と比較して速いAPIです。私の場合はよくFloat64Listを使います。</p>
+<p>インターフェースはnew List&lt;double&gt;(n)とほぼ同じなのですが、scalarlistのFloat64Listのほうが高速です。</p>
+</div>
+<div class="section" id="float64list">
+<h2>Float64Listのアセンブラ<a class="headerlink" href="#float64list" title="Permalink to this headline">¶</a></h2>
+<p>まずは中間表現です。</p>
+<div class="highlight-python"><pre>// sl.dart_::_addvector2
+Before Optimizations:
+B1[target]
+    CheckStackOverflow:2()
+    PushArgument:4(v1)
+    PushArgument:6(v4)
+    PushArgument:8(v2)
+    PushArgument:10(v4)
+    v5 &lt;- InstanceCall:11([], v2, v4 IC[1: _Float64Array@0x37975bd9 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3 }
+    PushArgument:12(v5)
+    PushArgument:14(v3)
+    PushArgument:16(v4)
+    v6 &lt;- InstanceCall:17([], v3, v4 IC[1: _Float64Array@0x37975bd9 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3, a4 }
+    PushArgument:18(v6)
+    v7 &lt;- InstanceCall:19(+, v5, v6 IC[1: _Double@0x36924d72, _Double@0x36924d72 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3 }
+    PushArgument:20(v7)
+    InstanceCall:21([]=, v1, v4, v7 IC[1: _Float64Array@0x37975bd9, _Smi@0x36924d72, _Double@0x36924d72 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2 }
+    v8 &lt;- Constant:22(#null)
+    Return:23(v8)</pre>
+</div>
+<p>中間表現の段階では、InstanceCall []や []=を呼び出しているだけですね。</p>
+<p>TypeFeedbackされた型は、Float64Arrayになっています。これは、Float64List型のDart VM内部の表現になります。</p>
+<p>最適化後の中間表現</p>
+<div class="highlight-python"><pre>After Optimizations:
+  2: B1[target] ParallelMove ebx &lt;- S-4, edx &lt;- S-3, ecx &lt;- S-2, eax &lt;- S-1
+  4:     CheckStackOverflow:2()
+  6:     CheckClass:11(v2 IC[1: _Float64Array@0x37975bd9 #600]) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v2 [edx], v4 [eax] }
+  8:     CheckSmi:11(v4) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v2 [edx], v4 [eax] }
+ 10:     CheckArrayBound:11(v2, v4) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v2 [edx], v4 [eax] }
+ 12:     v5 &lt;- LoadIndexed:32(v2, v4) {PT: double} {PCid: _Double@0x36924d72}
+ 14:     CheckClass:17(v3 IC[1: _Float64Array@0x37975bd9 #600]) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v5 [xmm1], v3 [ecx], v4 [eax] }
+ 16:     CheckArrayBound:17(v3, v4) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v5 [xmm1], v3 [ecx], v4 [eax] }
+ 18:     v6 &lt;- LoadIndexed:36(v3, v4) {PT: double} {PCid: _Double@0x36924d72}
+ 20:     ParallelMove xmm1 &lt;- xmm1
+ 20:     v7 &lt;- BinaryDoubleOp:19(+, v5, v6) {PT: double} {PCid: _Double@0x36924d72}
+ 22:     CheckClass:21(v1 IC[1: _Float64Array@0x37975bd9 #1]) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v7 [xmm1] }
+ 24:     CheckArrayBound:21(v1, v4) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v7 [xmm1] }
+ 26:     StoreIndexed:43(v1, v4, v7) {PCid: dynamic}
+ 28:     v8 &lt;- Constant:22(#null) {PT: Null} {PCid: Null}
+ 29:     ParallelMove eax &lt;- eax</pre>
+</div>
+<p>CheckClassと、CheckArrayBoundが挿入されています。</p>
+<p>また、InstanceCall []がLoadIndexed, InstanceCall []=がStoreIndexedに変換されています。</p>
+<p>コード</p>
+<div class="highlight-python"><pre>-Code for optimized function 'file:///sl.dart_::_addvector2' {
+        ;; Enter frame
+0xb2fc9a78    55                     push ebp
+0xb2fc9a79    89e5                   mov ebp,esp
+0xb2fc9a7b    e800000000             call 0xb2fc9a80
+        ;; B0
+        ;; B1
+0xb2fc9a80    8b5d14                 mov ebx,[ebp+0x14]
+0xb2fc9a83    8b5510                 mov edx,[ebp+0x10]
+0xb2fc9a86    8b4d0c                 mov ecx,[ebp+0xc]
+0xb2fc9a89    8b4508                 mov eax,[ebp+0x8]
+        ;; CheckStackOverflow:2()
+0xb2fc9a8c    3b25b4d9a909           cmp esp,[0x9a9d9b4]
+0xb2fc9a92    0f8686000000           jna 0xb2fc9b1e
+        ;; CheckClass:11(v2 IC[1: _Float64Array@0x37975bd9 #600])
+0xb2fc9a98    f6c201                 test_b edx,0x1
+0xb2fc9a9b    0f8499000000           jz 0xb2fc9b3a
+0xb2fc9aa1    0fb77a01               movzx_w edi,[edx+0x1]
+0xb2fc9aa5    83ff3c                 cmp edi,0x3c
+0xb2fc9aa8    0f858c000000           jnz 0xb2fc9b3a
+        ;; CheckSmi:11(v4)
+0xb2fc9aae    a801                   test al,0x1
+0xb2fc9ab0    0f8589000000           jnz 0xb2fc9b3f
+        ;; CheckArrayBound:11(v2, v4)
+0xb2fc9ab6    3b4203                 cmp eax,[edx+0x3]
+0xb2fc9ab9    0f8385000000           jnc 0xb2fc9b44
+        ;; v5 &lt;- LoadIndexed:32(v2, v4) {PT: double} {PCid: _Double@0x36924d72}
+0xb2fc9abf    f20f104c8207           movsd xmm1,[edx+eax*0x4+0x7]
+        ;; CheckClass:17(v3 IC[1: _Float64Array@0x37975bd9 #600])
+0xb2fc9ac5    f6c101                 test_b ecx,0x1
+0xb2fc9ac8    0f847b000000           jz 0xb2fc9b49
+0xb2fc9ace    0fb77901               movzx_w edi,[ecx+0x1]
+0xb2fc9ad2    83ff3c                 cmp edi,0x3c
+0xb2fc9ad5    0f856e000000           jnz 0xb2fc9b49
+        ;; CheckArrayBound:17(v3, v4)
+0xb2fc9adb    3b4103                 cmp eax,[ecx+0x3]
+0xb2fc9ade    0f836a000000           jnc 0xb2fc9b4e
+        ;; v6 &lt;- LoadIndexed:36(v3, v4) {PT: double} {PCid: _Double@0x36924d72}
+0xb2fc9ae4    f20f10548107           movsd xmm2,[ecx+eax*0x4+0x7]
+        ;; ParallelMove xmm1 &lt;- xmm1
+        ;; v7 &lt;- BinaryDoubleOp:19(+, v5, v6) {PT: double} {PCid: _Double@0x36924d72}
+0xb2fc9aea    f20f58ca               addsd xmm1,xmm2
+        ;; CheckClass:21(v1 IC[1: _Float64Array@0x37975bd9 #1])
+0xb2fc9aee    f6c301                 test_b ebx,0x1
+0xb2fc9af1    0f845c000000           jz 0xb2fc9b53
+0xb2fc9af7    0fb77b01               movzx_w edi,[ebx+0x1]
+0xb2fc9afb    83ff3c                 cmp edi,0x3c
+0xb2fc9afe    0f854f000000           jnz 0xb2fc9b53
+        ;; CheckArrayBound:21(v1, v4)
+0xb2fc9b04    3b4303                 cmp eax,[ebx+0x3]
+0xb2fc9b07    0f834b000000           jnc 0xb2fc9b58
+        ;; StoreIndexed:43(v1, v4, v7) {PCid: dynamic}
+0xb2fc9b0d    f20f114c8307           movsd [ebx+eax*0x4+0x7],xmm1
+        ;; v8 &lt;- Constant:22(#null) {PT: Null} {PCid: Null}
+0xb2fc9b13    b819003cb5             mov eax,0xb53c0019
+        ;; ParallelMove eax &lt;- eax
+        ;; Return:23(v8)
+0xb2fc9b18    89ec                   mov esp,ebp
+0xb2fc9b1a    5d                     pop ebp
+0xb2fc9b1b    c3                     ret
+0xb2fc9b1c    90                     nop
+0xb2fc9b1d    cc                     int3</pre>
+</div>
+<p>CheckArrayBoundはありますが、ほぼ1命令でset getできている点が素晴らしい、というかいろいろヤバいですね。</p>
+<p>また、double型のboxing, unboxingがすべて畳み込まれています。</p>
+<p>getIndexed</p>
+<div class="highlight-python"><pre>        ;; CheckArrayBound:11(v2, v4)
+0xb304ad76    3b4203                 cmp eax,[edx+0x3]
+0xb304ad79    0f8385000000           jnc 0xb304ae04
+        ;; v5 &lt;- LoadIndexed:32(v2, v4) {PT: double} {PCid: _Double@0x36924d72}
+0xb304ad7f    f20f104c8207           movsd xmm1,[edx+eax*0x4+0x7]</pre>
+</div>
+<p>setIndexed</p>
+<div class="highlight-python"><pre>        ;; CheckArrayBound:21(v1, v4)
+0xb304adc4    3b4303                 cmp eax,[ebx+0x3]
+0xb304adc7    0f834b000000           jnc 0xb304ae18
+        ;; StoreIndexed:43(v1, v4, v7) {PCid: dynamic}
+0xb304adcd    f20f114c8307           movsd [ebx+eax*0x4+0x7],xmm1</pre>
+</div>
+</div>
+<div class="section" id="list-double">
+<h2>仮にList&lt;double&gt;を使用した場合、どうなるのでしょうか？<a class="headerlink" href="#list-double" title="Permalink to this headline">¶</a></h2>
+<p>addvectorを呼び出す際に、List&lt;double&gt;型を引数として渡します。</p>
+<p>dart src</p>
+<div class="highlight-python"><pre>import 'dart:scalarlist';
+
+addvector(var ret, var l, var r, var index) {
+    ret[index] = l[index] + r[index];
+}</pre>
+</div>
+<p>最適化前の中間表現</p>
+<div class="highlight-python"><pre>Before Optimizations
+==== file:///sl.dart_::_addvector
+B1[target]
+    CheckStackOverflow:2()
+    PushArgument:4(v1)
+    PushArgument:6(v4)
+    PushArgument:8(v2)
+    PushArgument:10(v4)
+    v5 &lt;- InstanceCall:11([], v2, v4 IC[1: _ObjectArray@0x36924d72 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3 }
+    PushArgument:12(v5)
+    PushArgument:14(v3)
+    PushArgument:16(v4)
+    v6 &lt;- InstanceCall:17([], v3, v4 IC[1: _ObjectArray@0x36924d72 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3, a4 }
+    PushArgument:18(v6)
+    v7 &lt;- InstanceCall:19(+, v5, v6 IC[1: _Double@0x36924d72, _Double@0x36924d72 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3 }
+    PushArgument:20(v7)
+    InstanceCall:21([]=, v1, v4, v7 IC[1: _ObjectArray@0x36924d72, _Smi@0x36924d72, _Double@0x36924d72 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2 }
+    v8 &lt;- Constant:22(#null)
+    Return:23(v8)
+I</pre>
+</div>
+<p>Float64List版と大して変わらないですね。 まあ、ソースコード同じなので。</p>
+<p>ただし、TypeFeedbackされた型が、Float64ArrayからObjectArrayになっています。</p>
+<p>最適化後の中間表現</p>
+<div class="highlight-python"><pre>After Optimizations:
+==== file:///sl.dart_::_addvector
+  2: B1[target] ParallelMove ebx &lt;- S-4, edx &lt;- S-3, ecx &lt;- S-2, eax &lt;- S-1
+  4:     CheckStackOverflow:2()
+  6:     CheckClass:11(v2 IC[1: _ObjectArray@0x36924d72 #600]) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v2 [edx], v4 [eax] }
+  8:     CheckSmi:11(v4) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v2 [edx], v4 [eax] }
+ 10:     CheckArrayBound:11(v2, v4) env={ v1 [ebx], v2 [edx], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v2 [edx], v4 [eax] }
+ 12:     v5 &lt;- LoadIndexed:32(v2, v4) {PT: dynamic} {PCid: dynamic}
+ 14:     CheckClass:17(v3 IC[1: _ObjectArray@0x36924d72 #600]) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v5 [edi], v3 [ecx], v4 [eax] }
+ 16:     CheckArrayBound:17(v3, v4) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v5 [edi], v3 [ecx], v4 [eax] }
+ 18:     v6 &lt;- LoadIndexed:36(v3, v4) {PT: dynamic} {PCid: dynamic}
+ 20:     CheckEitherNonSmi:19(v5, v6) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [S-1], v0 [C], v1 [ebx], v4 [S-1], v5 [edi], v6 [edx] }
+ 22:     v9 &lt;- UnboxDouble:19(v5) {PCid: _Double@0x36924d72} env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [S-1], v0 [C], v1 [ebx], v4 [S-1], v5 [edi], v6 [edx] }
+ 24:     v10 &lt;- UnboxDouble:19(v6) {PCid: _Double@0x36924d72} env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [S-1], v0 [C], v1 [ebx], v4 [S-1], v5 [edi], v6 [edx] }
+ 26:     ParallelMove xmm1 &lt;- xmm1
+ 26:     v7 &lt;- BinaryDoubleOp:19(+, v9, v10) {PT: double} {PCid: _Double@0x36924d72}
+ 28:     CheckClass:21(v1 IC[1: _ObjectArray@0x36924d72 #1]) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [S-1], v0 [C], v1 [ebx], v4 [S-1], v7 [xmm1] }
+ 29:     ParallelMove eax &lt;- S-1
+ 30:     CheckArrayBound:21(v1, v4) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v7 [xmm1] }
+ 32:     v11 &lt;- BoxDouble:45(v7) {PCid: _Double@0x36924d72}
+ 34:     ParallelMove ecx &lt;- ecx
+ 34:     StoreIndexed:42(v1, v4, v11) {PCid: dynamic}
+ 36:     v8 &lt;- Constant:22(#null) {PT: Null} {PCid: Null}
+ 37:     ParallelMove eax &lt;- eax
+ 38:     Return:23(v8)</pre>
+</div>
+<p>Float64List版と比較すると、UnboxDoubleとBoxDoubleが余計に入っています。</p>
+<p>これは、List&lt;double&gt;で取得した値は LoadIndexedのreceiver型がDouble型なので、一度Unboxが必要になります。</p>
+<p>Float64Listの場合、LoadIndexedのreceiver型は、UnboxedDouble型です。そのため、Double型の値にassignする場合、Boxingが必要になります。</p>
+<p>[]の処理</p>
+<div class="highlight-python"><pre>16:     CheckArrayBound:17(v3, v4) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v5 [edi], v3 [ecx], v4 [eax] }
+18:     v6 &lt;- LoadIndexed:36(v3, v4) {PT: dynamic} {PCid: dynamic}
+20:     CheckEitherNonSmi:19(v5, v6) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [S-1], v0 [C], v1 [ebx], v4 [S-1], v5 [edi], v6 [edx] }
+22:     v9 &lt;- UnboxDouble:19(v5) {PCid: _Double@0x36924d72} env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [S-1], v0 [C], v1 [ebx], v4 [S-1], v5 [edi], v6 [edx] }</pre>
+</div>
+<p>[]=の処理</p>
+<div class="highlight-python"><pre>30:     CheckArrayBound:21(v1, v4) env={ v1 [ebx], v2 [S-3], v3 [ecx], v4 [eax], v0 [C], v1 [ebx], v4 [eax], v7 [xmm1] }
+32:     v11 &lt;- BoxDouble:45(v7) {PCid: _Double@0x36924d72}
+34:     ParallelMove ecx &lt;- ecx
+34:     StoreIndexed:42(v1, v4, v11) {PCid: dynamic}</pre>
+</div>
+<p>全体像は長くなるので省略し、LoadIndexedとStoreIndexedのみです。</p>
+<p>LoadIndexed</p>
+<div class="highlight-python"><pre>        ;; CheckArrayBound:17(v3, v4)
+0xb304af79    3b4107                 cmp eax,[ecx+0x7]
+0xb304af7c    0f8329010000           jnc 0xb304b0ab
+        ;; v6 &lt;- LoadIndexed:36(v3, v4) {PT: dynamic} {PCid: dynamic}
+0xb304af82    8b54410b               mov edx,[ecx+eax*0x2+0xb]</pre>
+</div>
+<p>LoadIndex自体は1命令ですね。ですが取得した値は、Double型のオブジェクトへのポインタです。</p>
+<p>runtime/vm/intermediate_language_ia32.cc</p>
+<div class="highlight-python"><pre>void StoreIndexedInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
+  ...
+  if (class_id() == kFloat64ArrayCid) {
+    __ movsd(element_address, locs()-&gt;in(2).xmm_reg());//Float64ArrayのStoreは1命令
+    return;
+  }
+
+  ASSERT(class_id() == kArrayCid);
+  if (ShouldEmitStoreBarrier()) {                      //Smi型、Bool型、Null以外はHeapに領域確保し、GC対象。
+    Register value = locs()-&gt;in(2).reg();
+    __ StoreIntoObject(array, element_address, value); //そのため、GC用にStoreBurrier必要
+    return;
+  }
+}</pre>
+</div>
+<p>StoreIndexed</p>
+<div class="highlight-python"><pre>      ;; StoreIndexed:42(v1, v4, v11) {PCid: dynamic}
+0xb304b035    894c430b               mov [ebx+eax*0x2+0xb],ecx  // store Double型Instance
+                                                                // StoreIntoObjectFilter
+0xb304b039    83e105                 and ecx,0x5                // mask NewObjectAlignmentOffset(4) | HeapTag(1) = 0x5
+0xb304b03c    d1e9                   shr ecx, 1                 // 0010 ここに来るのはHeapTagだけじゃないのか？ HeapTagが立って入ればキャリーへ
+0xb304b03e    13cb                   adc ecx,ebx                // ebxにecx下位2bitをorしたい。
+0xb304b040    83e107                 and ecx,0x7                // mask ObjectAlignment(word*2) - 1 = 0x7
+0xb304b043    83f904                 cmp ecx,0x4                // ebxがOldかつecxがNew
+0xb304b046    750b                   jnz 0xb304b053             // goto noupdate
+0xb304b048    50                     push eax
+0xb304b049    8d44430b               lea eax,[ebx+eax*0x2+0xb]  // storeしたポインタをupdateする。
+0xb304b04d    e81651ffff             call 0xb3040168  [stub: UpdateStoreBuffer] //call UpdateStoreBuffer
+0xb304b052    58                     pop eax
+      ;; v8 &lt;- Constant:22(#null) {PT: Null} {PCid: Null}
+0xb304b053    b8190044b5             mov eax,0xb5440019         // label noupdate</pre>
+</div>
+<p>Storeindexedでは、List自体がHeapのOld領域に格納されている場合に、</p>
+<p>NewからAllocateしたDouble型のインスタンスだった場合、Old領域からNew領域へん参照を持つことになります。</p>
+<p>世代別GCの場合、Old領域からNew領域への参照を厳密に管理するため、StoreBufferという記録領域に記録する必要があります。</p>
+<p>詳細は、 <a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a>  の世代別GC、ライトバリアの章や、RubiniusやV8の章を参照してください。</p>
+<p>上記のStoreIntoObjectFilterでは、ListがOld領域に格納されているのか判定し、必要であればUpdateStoreBufferを呼び出し、New領域への参照として記録しています。</p>
+<p>Float64Arrayの場合は、UnboxDoubleのままメモリに書き込んでいます。</p>
+<p>Heapに領域確保するインスタンスの場合は、メモリに書き込むと同時にStoreBurrierの必要性をチェックしています。</p>
+<p>bit演算のイメージ</p>
+<div class="highlight-python"><pre>         8421
+ebxが|||||001とする。  HeapTagなので、最下位は1。Objectはword*2 alignmentなので3bit目は0
+ecxが|||||XYZとする。  HeapTagのはずなので、最下位は1のはず。
+
+and 0x5, shr 1, adcによって、
+ ecx     ecx
+8421    8421
+0x0z -&gt; 00xz
+           ^ adcでキャリーとして足す
+ecx  =  ebx      +  ecx
+        |||||001 + 00xz
+
+enum ObjectAlignment {
+  // Alignment offsets are used to determine object age.
+  kNewObjectAlignmentOffset = kWordSize,
+  kOldObjectAlignmentOffset = 0,
+  // Object sizes are aligned to kObjectAlignment.
+  kObjectAlignment = 2 * kWordSize,
+
+WordSize=4ですが、オブジェクトの場合、WordSize*2でAlignmentされるルールです。
+なぜなら、Objectは1wordのtagを持つため。かな？
+
+andl 0x7とcmpl 0x4で検査する。
+最下位3bitをmaskしてcmp、3bit目だけ立っていた、0x4だった場合のみ、UpdateStoreBufferの対象となる。
+
+// Compare with the expected bit pattern.
+cmpl(value, Immediate((kNewObjectAlignmentOffset &gt;&gt; 1) + kHeapObjectTag + kOldObjectAlignmentOffset + kHeapObjectTag));
+
+2(4&gt;&gt;1) + 1 + 0 + 1 = 4となってます。
+
+bool IsNewObject() const {
+  uword addr = reinterpret_cast&lt;uword&gt;(this);
+  return (addr &amp; kNewObjectAlignmentOffset) == kNewObjectAlignmentOffset;
+}
+
+bool IsOldObject() const {
+  uword addr = reinterpret_cast&lt;uword&gt;(this);
+  return (addr &amp; kNewObjectAlignmentOffset) == kOldObjectAlignmentOffset;
+}
+
+えええ、New領域のObjは、0x4が立ってるんだっけ？
+
+から考察するに、0x4になる条件は、ebxがOld領域のオブジェクト ecxがNew領域のオブジェクト
+上記以外の場合、UpdateStoreBufferは不要。</pre>
+</div>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>scalarlist速い。</li>
+<li>ListのStoreIndexはいろいろややこしい</li>
+<li>StoreBufferの説明はGC編であるとよいですね。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121214.html">Dart VM Advent Calendar 2012 12/14</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>

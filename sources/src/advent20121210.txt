@@ -13,9 +13,7 @@ GCの概要
 
 GCは、世代別GCを採用しています。
 
-世代別GCの概要はGC本を参照しましょう。
-
-http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim
+世代別GCの概要は `GC本`_ を参照しましょう。
 
 世代別GCなので、ヒープ領域をNew領域とOld領域に分けます。
 
@@ -33,9 +31,7 @@ Heapサイズを指定するオプション ::
 CopyGC
 ==============================================================================
 
-CopyGCの概要は、GC本を参照しましょう。
-
-http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim
+CopyGCの概要は、 `GC本`_ を参照しましょう。
 
 
 New領域はCopyGCなので、複数に分割された領域が必要になります。
@@ -50,9 +46,7 @@ JVM(HotSpot)の場合、CopyGCを20回生き延びたらOld領域に移動する
 Mark&SweepGC
 ==============================================================================
 
-Mark&SweepGCの概要はGC本を参照しましょう。
-
-http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim
+Mark&SweepGCの概要は `GC本`_ を参照しましょう。
 
 Old領域は、PageとLargePageに分けて管理します。
 
@@ -272,6 +266,9 @@ new領域管理のScavengerは、initial checkinからありました。
 (1) Dart VMのGCは世代別GC
 (2) New領域は、CopyGC(Scavenger)で掃除する。
 (3) Old領域は、Mark&SweepGCで掃除する。
-(4) GC本は偉大だった。
+(4) `GC本`_ は偉大だった。
 (5) 詳細編があるとよいですね。。
+
+
+.. _GC本 : http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim
 

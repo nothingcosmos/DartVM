@@ -60,8 +60,7 @@ JavaScriptとV8みたいな関係です。</p>
 <div class="section" id="gc">
 <h2>GCの概要<a class="headerlink" href="#gc" title="Permalink to this headline">¶</a></h2>
 <p>GCは、世代別GCを採用しています。</p>
-<p>世代別GCの概要はGC本を参照しましょう。</p>
-<p><a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim</a></p>
+<p>世代別GCの概要は <a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a> を参照しましょう。</p>
 <p>世代別GCなので、ヒープ領域をNew領域とOld領域に分けます。</p>
 <ul class="simple">
 <li>New領域は、CopyGC</li>
@@ -76,8 +75,7 @@ old_gen_heap_size: 512 (old gen heap size in MB,e.g: --old_gen_heap_size=1024 al
 </div>
 <div class="section" id="copygc">
 <h2>CopyGC<a class="headerlink" href="#copygc" title="Permalink to this headline">¶</a></h2>
-<p>CopyGCの概要は、GC本を参照しましょう。</p>
-<p><a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim</a></p>
+<p>CopyGCの概要は、 <a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a> を参照しましょう。</p>
 <p>New領域はCopyGCなので、複数に分割された領域が必要になります。</p>
 <p>Dart VMの場合、2分割して16M、2分割した領域を相互に移動して、CopyGCを実現します。</p>
 <p>世代別GCですので、ある条件を満たすと、New領域からOld領域にPromotionします。</p>
@@ -86,8 +84,7 @@ JVM(HotSpot)の場合、CopyGCを20回生き延びたらOld領域に移動する
 </div>
 <div class="section" id="mark-sweepgc">
 <h2>Mark&amp;SweepGC<a class="headerlink" href="#mark-sweepgc" title="Permalink to this headline">¶</a></h2>
-<p>Mark&amp;SweepGCの概要はGC本を参照しましょう。</p>
-<p><a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim</a></p>
+<p>Mark&amp;SweepGCの概要は <a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a> を参照しましょう。</p>
 <p>Old領域は、PageとLargePageに分けて管理します。</p>
 <p>Pageは、PageSize単位でAllocation(mmap)した領域で、
 小さなオブジェクトはすべてPageにAllocationされます。</p>
@@ -314,7 +311,7 @@ Heap::AllocateOld(size, type) {
 <li>Dart VMのGCは世代別GC</li>
 <li>New領域は、CopyGC(Scavenger)で掃除する。</li>
 <li>Old領域は、Mark&amp;SweepGCで掃除する。</li>
-<li>GC本は偉大だった。</li>
+<li><a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a> は偉大だった。</li>
 <li>詳細編があるとよいですね。。</li>
 </ol>
 </div>
