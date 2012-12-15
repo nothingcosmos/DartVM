@@ -172,4 +172,5 @@ verboseをgrepして探すことも多いですね。
   disassemble, 生成した全コードをdisassembleして表示します。
   disassemble_optimized,FlowGraphCompilerでコンパイルされたコードのみdisassembleして表示します。
   disassemble_stubs, 生成済みstubをdisassmebleして表示します。上記disassembleオプションでは出力されません。
+  code-comments=true, disassemble時にコメントを出力する。デフォルトでは、IRとの対応を出力する。
 
