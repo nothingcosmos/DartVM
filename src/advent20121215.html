@@ -29,7 +29,7 @@
     <script type="text/javascript" src="../_static/theme_extras.js"></script>
     <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
     <link rel="up" title="Dart VM index" href="advent201212index.html" />
-    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="next" title="Dart VM Advent Calendar 2012 12/16" href="advent20121216.html" />
     <link rel="prev" title="Dart VM Advent Calendar 2012 12/14" href="advent20121214.html" /> 
   </head>
   <body>
@@ -44,7 +44,7 @@
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        <a href="advent20121216.html">Dart VM Advent Calendar 2012 12/16</a>&#160;&#160;»
         </p>
 
       </div>
@@ -57,11 +57,13 @@
 <h2>Dart VMのcore API scalarlist<a class="headerlink" href="#dart-vmcore-api-scalarlist" title="Permalink to this headline">¶</a></h2>
 <p>dartのAPI、特にcoreに用意されたAPIは、Dartのみで記述されることが少なく、
 C++で組み込み関数として記述されることが多いです。</p>
-<p>dart:scalarlistパッケージを元に、DartのAPiが、Dart VMでどのように処理されているのかを追います。</p>
-<p>Float64Listは、かなりチューニングされているので特殊ですが。。</p>
+<p>dart:scalarlistパッケージを元に、DartのAPIが、Dart VMでどのように処理されているのかを追います。</p>
+<p>scalarlistの中でも、よく使うと思われるFloat64Listを元に、</p>
+<p>1回目では、Float64ListとList&lt;double&gt;を比較してみます。</p>
+<p>2回目では、Float64Listのソースコードから、Dart VMでどのように処理されているのかを追います。</p>
 </div>
-<div class="section" id="scalarlist">
-<h2>scalarlist<a class="headerlink" href="#scalarlist" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="float64list">
+<h2>Float64Listのサンプル<a class="headerlink" href="#float64list" title="Permalink to this headline">¶</a></h2>
 <p>scalarlistをインポートして、Float64Listを使用しています。</p>
 <p>scalarlist add:</p>
 <div class="highlight-python"><pre>#import 'dart:scalarlist';
@@ -70,12 +72,12 @@ addvector2(Float64List ret, Float64List l, Float64List r, int index) {
   ret[index] = l[index] + r[index];
 }</pre>
 </div>
-<p>scalarlistというのは、scalarをメモリ上にシーケンシャルに敷き詰めるListである。</p>
+<p>scalarlistというのは、scalarをメモリ上にシーケンシャルに敷き詰めるListです。</p>
 <p>普通のList&lt;&gt;と比較して速いAPIです。私の場合はよくFloat64Listを使います。</p>
-<p>インターフェースはnew List&lt;double&gt;(n)とほぼ同じなのですが、scalarlistのFloat64Listのほうが高速です。</p>
+<p>インターフェースはnew List&lt;double&gt;(n)とほぼ同じなのですが、scalarlistのFloat64Listは組み込み型としてチューニングされており、高速です。</p>
 </div>
-<div class="section" id="float64list">
-<h2>Float64Listのアセンブラ<a class="headerlink" href="#float64list" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id1">
+<h2>Float64Listの中間表現<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
 <p>まずは中間表現です。</p>
 <div class="highlight-python"><pre>// sl.dart_::_addvector2
 Before Optimizations:
@@ -120,6 +122,9 @@ B1[target]
 </div>
 <p>CheckClassと、CheckArrayBoundが挿入されています。</p>
 <p>また、InstanceCall []がLoadIndexed, InstanceCall []=がStoreIndexedに変換されています。</p>
+</div>
+<div class="section" id="id2">
+<h2>Float64Listのアセンブラ<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
 <p>コード</p>
 <div class="highlight-python"><pre>-Code for optimized function 'file:///sl.dart_::_addvector2' {
         ;; Enter frame
@@ -185,7 +190,8 @@ B1[target]
 0xb2fc9b1d    cc                     int3</pre>
 </div>
 <p>CheckArrayBoundはありますが、ほぼ1命令でset getできている点が素晴らしい、というかいろいろヤバいですね。</p>
-<p>また、double型のboxing, unboxingがすべて畳み込まれています。</p>
+<p>CheckArrayBoundも、条件が揃えばRangeAnalysisの解析結果を元に削除されます。</p>
+<p>double型のboxing, unboxingがすべて畳み込まれていますね。</p>
 <p>getIndexed</p>
 <div class="highlight-python"><pre>        ;; CheckArrayBound:11(v2, v4)
 0xb304ad76    3b4203                 cmp eax,[edx+0x3]
@@ -202,7 +208,7 @@ B1[target]
 </div>
 </div>
 <div class="section" id="list-double">
-<h2>仮にList&lt;double&gt;を使用した場合、どうなるのでしょうか？<a class="headerlink" href="#list-double" title="Permalink to this headline">¶</a></h2>
+<h2>List&lt;double&gt;の中間表現<a class="headerlink" href="#list-double" title="Permalink to this headline">¶</a></h2>
 <p>addvectorを呼び出す際に、List&lt;double&gt;型を引数として渡します。</p>
 <p>dart src</p>
 <div class="highlight-python"><pre>import 'dart:scalarlist';
@@ -233,8 +239,8 @@ B1[target]
     Return:23(v8)
 I</pre>
 </div>
-<p>Float64List版と大して変わらないですね。 まあ、ソースコード同じなので。</p>
-<p>ただし、TypeFeedbackされた型が、Float64ArrayからObjectArrayになっています。</p>
+<p>Float64List版と大して変わらないです。Dartは、実行時dynamic typingなので、最適化前の中間表現は、List&lt;double&gt;もFloat64Listも同じになります。</p>
+<p>ただし、上記は最適化JITコンパイル前の中間表現であるため、TypeFeedbackされた型がFloat64ArrayからObjectArrayになっています。</p>
 <p>最適化後の中間表現</p>
 <div class="highlight-python"><pre>After Optimizations:
 ==== file:///sl.dart_::_addvector
@@ -277,6 +283,9 @@ I</pre>
 34:     ParallelMove ecx &lt;- ecx
 34:     StoreIndexed:42(v1, v4, v11) {PCid: dynamic}</pre>
 </div>
+</div>
+<div class="section" id="id3">
+<h2>List&lt;double&gt;のアセンブラ<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
 <p>全体像は長くなるので省略し、LoadIndexedとStoreIndexedのみです。</p>
 <p>LoadIndexed</p>
 <div class="highlight-python"><pre>        ;; CheckArrayBound:17(v3, v4)
@@ -302,6 +311,8 @@ I</pre>
   }
 }</pre>
 </div>
+<p>Storeのアセンブラは大きく異なります。</p>
+<p>Float64Array型の場合movsd命令のみですが、通常のArray型の場合、StoreIntoObjectのStubを呼び出しています。</p>
 <p>StoreIndexed</p>
 <div class="highlight-python"><pre>      ;; StoreIndexed:42(v1, v4, v11) {PCid: dynamic}
 0xb304b035    894c430b               mov [ebx+eax*0x2+0xb],ecx  // store Double型Instance
@@ -320,65 +331,72 @@ I</pre>
 0xb304b053    b8190044b5             mov eax,0xb5440019         // label noupdate</pre>
 </div>
 <p>Storeindexedでは、List自体がHeapのOld領域に格納されている場合に、</p>
-<p>NewからAllocateしたDouble型のインスタンスだった場合、Old領域からNew領域へん参照を持つことになります。</p>
-<p>世代別GCの場合、Old領域からNew領域への参照を厳密に管理するため、StoreBufferという記録領域に記録する必要があります。</p>
-<p>詳細は、 <a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a>  の世代別GC、ライトバリアの章や、RubiniusやV8の章を参照してください。</p>
+<p>NewからAllocateしたDouble型のインスタンスだった場合、Old領域からNew領域への参照を持つことになります。</p>
+<p>世代別GCの場合、Old領域からNew領域への参照を厳密に管理するため、ListへのStoreのタイミングで、StoreBufferという記録領域に記録する必要があります。</p>
+<p>詳細は、 <a class="reference external" href="http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim">GC本</a>  の世代別GC、ライトバリア(WriteBarrier)の章や、RubiniusやV8の章を参照してください。</p>
 <p>上記のStoreIntoObjectFilterでは、ListがOld領域に格納されているのか判定し、必要であればUpdateStoreBufferを呼び出し、New領域への参照として記録しています。</p>
-<p>Float64Arrayの場合は、UnboxDoubleのままメモリに書き込んでいます。</p>
-<p>Heapに領域確保するインスタンスの場合は、メモリに書き込むと同時にStoreBurrierの必要性をチェックしています。</p>
-<p>bit演算のイメージ</p>
-<div class="highlight-python"><pre>         8421
-ebxが|||||001とする。  HeapTagなので、最下位は1。Objectはword*2 alignmentなので3bit目は0
-ecxが|||||XYZとする。  HeapTagのはずなので、最下位は1のはず。
+<p>Float64Arrayの場合はUnboxDoubleのままメモリに書き込んでおり、GCが参照するオブジェクトポインタではないため、非常に高速になります。</p>
+</div>
+<div class="section" id="storebarrier">
+<h2>StoreBarrierの判定処理<a class="headerlink" href="#storebarrier" title="Permalink to this headline">¶</a></h2>
+<p>参考</p>
+<div class="highlight-python"><pre>enum ObjectAlignment {
+  // Alignment offsets are used to determine object age.
+  kNewObjectAlignmentOffset = kWordSize,                //ia32なので、WordSizeは4
+  kOldObjectAlignmentOffset = 0,
+  // Object sizes are aligned to kObjectAlignment.
+  kObjectAlignment = 2 * kWordSize,                     //WordSize=4なので、8になる。Objectは1wordのtagを持つため、ObjectAlignment=8なのかな。
+
+bool IsNewObject() const {
+  uword addr = reinterpret_cast&lt;uword&gt;(this);
+  return (addr &amp; kNewObjectAlignmentOffset) == kNewObjectAlignmentOffset; // 3bit目が1ならNew領域
+}
+
+bool IsOldObject() const {
+  uword addr = reinterpret_cast&lt;uword&gt;(this);
+  return (addr &amp; kNewObjectAlignmentOffset) == kOldObjectAlignmentOffset; // 3bit目が0ならOld領域
+}</pre>
+</div>
+<p>bit演算の詳細(予想)</p>
+<div class="highlight-python"><pre>入力はebxとecxです。ebxがListオブジェクト、ecxがListにStoreする値になります。
+
+ebxは、New領域のHeapTagged オブジェクトか、Old領域のHeapTagged オブジェクトの可能性があります。
+
+そのため、ebxは、|||||X01 というアドレスを持ちます。Xは、0か1か分からないです。Xが0ならOld領域、Xが1ならNew領域です。
+
+ecxは、ListにStoreする値になります。
+
+そのため、New領域かOld領域のHeapTagged オブジェクト、もしくはHeapに格納しないオブジェクトになります。
+
+そんため、ecxは、|||||Y0Z というアドレスを持ちます。Yが0か1でOld,New領域が決まります。Zが0の場合、Heapに格納しないオブジェクトになります。
+
+ebxが|||||X01とする。 Old領域かつHeapTaggedなので、00Xとしています。Old領域かつObjectはword*2 alignmentなので3bit目は0
+ecxが|||||Y0Zとする。 Old領域かNew領域か管理するのがY bit。HeapTaggedなのか管理するのがZ bit。
 
 and 0x5, shr 1, adcによって、
  ecx     ecx
-8421    8421
-0x0z -&gt; 00xz
+0Y0Z -&gt; 00YZ
            ^ adcでキャリーとして足す
-ecx  =  ebx      +  ecx
-        |||||001 + 00xz
+ecx  =   ebx +  ecx
+     =  |X01 + 00YZ
 
-enum ObjectAlignment {
-  // Alignment offsets are used to determine object age.
-  kNewObjectAlignmentOffset = kWordSize,
-  kOldObjectAlignmentOffset = 0,
-  // Object sizes are aligned to kObjectAlignment.
-  kObjectAlignment = 2 * kWordSize,
-
-WordSize=4ですが、オブジェクトの場合、WordSize*2でAlignmentされるルールです。
-なぜなら、Objectは1wordのtagを持つため。かな？
-
-andl 0x7とcmpl 0x4で検査する。
-最下位3bitをmaskしてcmp、3bit目だけ立っていた、0x4だった場合のみ、UpdateStoreBufferの対象となる。
+andl 0x7(|111)とcmpl 0x4(|100)で検査する。最下位3bit maskと3bit目をチェックし、UpdateStoreBuffer。
 
 // Compare with the expected bit pattern.
 cmpl(value, Immediate((kNewObjectAlignmentOffset &gt;&gt; 1) + kHeapObjectTag + kOldObjectAlignmentOffset + kHeapObjectTag));
 
 2(4&gt;&gt;1) + 1 + 0 + 1 = 4となってます。
 
-bool IsNewObject() const {
-  uword addr = reinterpret_cast&lt;uword&gt;(this);
-  return (addr &amp; kNewObjectAlignmentOffset) == kNewObjectAlignmentOffset;
-}
+から考察するに、|X01 + 00YZ が |100 になる条件は、ebxがOld領域のオブジェクト(|100) ecxがNew領域のオブジェクト(|011)
 
-bool IsOldObject() const {
-  uword addr = reinterpret_cast&lt;uword&gt;(this);
-  return (addr &amp; kNewObjectAlignmentOffset) == kOldObjectAlignmentOffset;
-}
-
-えええ、New領域のObjは、0x4が立ってるんだっけ？
-
-から考察するに、0x4になる条件は、ebxがOld領域のオブジェクト ecxがNew領域のオブジェクト
 上記以外の場合、UpdateStoreBufferは不要。</pre>
 </div>
 </div>
-<div class="section" id="id1">
-<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id4">
+<h2>まとめ<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
 <ol class="arabic simple">
 <li>scalarlist速い。</li>
-<li>ListのStoreIndexはいろいろややこしい</li>
-<li>StoreBufferの説明はGC編であるとよいですね。</li>
+<li>ListのStoreIndexは、StoreBarrier処理を行う。</li>
 </ol>
 </div>
 </div>
@@ -392,7 +410,7 @@ bool IsOldObject() const {
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        <a href="advent20121216.html">Dart VM Advent Calendar 2012 12/16</a>&#160;&#160;»
         </p>
 
       </div>

@@ -1,0 +1,438 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/16 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/15" href="advent20121215.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/16</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121215.html">Dart VM Advent Calendar 2012 12/15</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-16">
+<h1>Dart VM Advent Calendar 2012 12/16<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-16" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dart-vmcore-api-scalarlist-2">
+<h2>Dart VMのcore API scalarlist (2)<a class="headerlink" href="#dart-vmcore-api-scalarlist-2" title="Permalink to this headline">¶</a></h2>
+<p>dart:scalarlistパッケージを元に、DartのAPIが、Dart VMでどのように処理されているのか.</p>
+<p>今回は、Float64Listのソースコードから追います。</p>
+<p>scalarlist</p>
+<div class="highlight-python"><pre>#import 'dart:scalarlist';
+
+addvector2(Float64List ret, Float64List l, Float64List r, int index) {
+  ret[index] = l[index] + r[index];
+}</pre>
+</div>
+</div>
+<div class="section" id="scalarlist">
+<h2>scalarlistのソースコード<a class="headerlink" href="#scalarlist" title="Permalink to this headline">¶</a></h2>
+<p>dart/lib/scalarlist/scalarlist.dart</p>
+<div class="highlight-python"><div class="highlight"><pre><span class="c">#source(&#39;byte_arrays.dart&#39;);</span>
+</pre></div>
+</div>
+<p>byte_arraysっていうdartのソースコードをインポートしている。</p>
+<p>dart/lib/scalarlist/byte_arrays.dart</p>
+<div class="highlight-python"><pre>abstract class Float64List implements List&lt;double&gt;, ByteArrayViewable {</pre>
+</div>
+<p>dart/runtime/lib/byte_array.dart</p>
+<div class="highlight-python"><pre>patch class Float64List {
+  /* patch */ factory Float64List(int length) {
+    return new _Float64Array(length);               // Float64List -&gt; Float64Array です
+  }
+
+class _Float64Array extends _ByteArrayBase implements Float64List {
+...
+
+  double operator[](int index) {
+    return _getIndexed(index);
+  }
+
+  int operator[]=(int index, double value) {
+    _setIndexed(index, value);
+  }
+
+  double _getIndexed(int index) native "Float64Array_getIndexed";            // native
+  int _setIndexed(int index, double value) native "Float64Array_setIndexed"; // native
+}</pre>
+</div>
+<p>ここでdart/lib/scalarlistから、dart/runtime/libを参照しています。</p>
+<p>ここからちょっと特殊で、[]や[]=から、_getIndexedや_setIndexedを経由してnativeな実装を参照します。</p>
+<p>nativeというキーワードは、dartのsyntaxで、native extention機能になります。</p>
+<p>JVMのJNIみたいなもんですね。DartからC/C++で実装されたコードを参照できます。</p>
+</div>
+<div class="section" id="runtime-lib-byte-array-cc">
+<h2>runtime/lib/byte_array.cc<a class="headerlink" href="#runtime-lib-byte-array-cc" title="Permalink to this headline">¶</a></h2>
+<p>ここからはC++の世界です。。ここからが本当の、、、</p>
+<p>dart/runtime/lib/byte_array.cc</p>
+<div class="highlight-python"><pre>DEFINE_NATIVE_ENTRY(Float64Array_getIndexed, 2) {
+  GETTER(Float64Array, Double, double);
+}
+
+DEFINE_NATIVE_ENTRY(Float64Array_setIndexed, 3) {
+  SETTER(Float64Array, Double, value, double);
+}
+
+#define GETTER(ArrayT, ObjectT, ValueT)                                        \
+  GETTER_ARGUMENTS(ArrayT, ValueT);                                            \
+  RangeCheck(array, index.Value() * sizeof(ValueT), sizeof(ValueT));           \
+  ValueT result = array.At(index.Value());                                     \
+  return ObjectT::New(result);
+
+#define SETTER(ArrayT, ObjectT, Getter, ValueT)                                \
+  SETTER_ARGUMENTS(ArrayT, ObjectT, ValueT);                                   \
+  RangeCheck(array, index.Value() * sizeof(ValueT), sizeof(ValueT));           \
+  ValueT value = value_object.Getter();                                        \
+  array.SetAt(index.Value(), value);                                           \
+  return Object::null();
+
+#define GETTER_ARGUMENTS(ArrayT, ValueT)                                       \
+  GET_NON_NULL_NATIVE_ARGUMENT(ArrayT, array, arguments-&gt;NativeArgAt(0));      \
+  GET_NON_NULL_NATIVE_ARGUMENT(Smi, index, arguments-&gt;NativeArgAt(1));
+
+#define SETTER_ARGUMENTS(ArrayT, ObjectT, ValueT)                              \
+  GET_NON_NULL_NATIVE_ARGUMENT(ArrayT, array, arguments-&gt;NativeArgAt(0));      \
+  GET_NON_NULL_NATIVE_ARGUMENT(Smi, index, arguments-&gt;NativeArgAt(1));         \
+  GET_NON_NULL_NATIVE_ARGUMENT(                                                \
+      ObjectT, value_object, arguments-&gt;NativeArgAt(2));
+
+// Checks to see if (index * num_bytes) is in the range
+// [0..array.ByteLength()).  without the risk of integer overflow.  If
+// the index is out of range, then a RangeError is thrown.
+static void RangeCheck(const ByteArray&amp; array,
+                       intptr_t index,
+                       intptr_t num_bytes) {
+  if (!Utils::RangeCheck(index, num_bytes, array.ByteLength())) {
+    const String&amp; error = String::Handle(String::NewFormatted(
+        "index (%"Pd") must be in the range [0..%"Pd")",
+        index, (array.ByteLength() / num_bytes)));
+    GrowableArray&lt;const Object*&gt; args;
+    args.Add(&amp;error);
+    Exceptions::ThrowByType(Exceptions::kRange, args);
+  }
+}</pre>
+</div>
+<p>C++のコードだと思ってファイルを開いたと思ったら、全部マクロだった。。</p>
+<p>結局は、ByteArray型のarray.GetAt(), array.SetAt()するだけのはず。</p>
+<p>あとは、DEFINE_NATIVE_ENTRYマクロが不明ですね。</p>
+<p>dart/runtime/vm/native_entry.h</p>
+<div class="highlight-python"><pre>#define NATIVE_ENTRY_FUNCTION(name) BootstrapNatives::DN_##name
+
+#define DEFINE_NATIVE_ENTRY(name, argument_count)                              \
+  static RawObject* DN_Helper##name(Isolate* isolate,                          \
+                                    NativeArguments* arguments);               \
+  void NATIVE_ENTRY_FUNCTION(name)(Dart_NativeArguments args) {                \
+    CHECK_STACK_ALIGNMENT;                                                     \
+    VERIFY_ON_TRANSITION;                                                      \
+    NativeArguments* arguments = reinterpret_cast&lt;NativeArguments*&gt;(args);     \
+    ASSERT(arguments-&gt;NativeArgCount() == argument_count);                     \
+    if (FLAG_trace_natives) OS::Print("Calling native: %s\n", ""#name);        \
+    {                                                                          \
+      StackZone zone(arguments-&gt;isolate());                                    \
+      HANDLESCOPE(arguments-&gt;isolate());                                       \
+      arguments-&gt;SetReturnUnsafe(                                              \
+          DN_Helper##name(arguments-&gt;isolate(), arguments));                   \
+      if (FLAG_deoptimize_alot) DeoptimizeAll();                               \
+    }                                                                          \
+    VERIFY_ON_TRANSITION;                                                      \
+  }                                                                            \
+  static RawObject* DN_Helper##name(Isolate* isolate,                          \
+                                    NativeArguments* arguments)</pre>
+</div>
+<p>うわああああああああああ。。。</p>
+<p>before</p>
+<div class="highlight-python"><pre>DEFINE_NATIVE_ENTRY(Float64Array_getIndexed, 2) {
+  GETTER(Float64Array, Double, double);
+}</pre>
+</div>
+<p>after</p>
+<div class="highlight-python"><pre>static RawObject* DN_HelperFloat64Array_getIndexed(Isolate* isolate, NativeArguments* arguments);
+void BootstrapNatives::DN_Float64Array_getIndexed(Dart_NativeArguments args) {
+  CHECK_STACK_ALIGNMENT;
+  VERIFY_ON_TRANSITION;
+  NativeArguments* arguments = reinterpret_cast&lt;NativeArguments*&gt;(args);
+  ASSERT(arguments-&gt;NativeArgCount() == 2);
+  if (FLAG_trace_natives) OS::Print("Calling native: %s\n", "Float64Array_getIndexed");
+  {
+    StackZone zone(arguments-&gt;isolate());
+    HANDLESCOPE(arguments-&gt;isolate());
+    arguments-&gt;SetReturnUnsafe(
+        DN_HelperFloat64Array_getIndex(arguments-&gt;isolate(), arguments));
+    if (FLAG_deoptimize_alot) DeoptimizeAll();
+  }
+  VERIFY_ON_TRANSITION;
+}
+static RawObject* DN_HelperFloat64Array_getIndexed(Isolate* isolate, NativeArguments* arguments)
+{
+  //GETTER(Float64Array, Double, double);
+  const Instance&amp; __array_instance__ =
+      Instance::CheckedHandle(isolate, arguments-&gt;NativeArgAt(0));
+  if (!__array_instance__.IsFloat64Array()) {
+    GrowableArray&lt;const Object*&gt; __args__;
+    __args__.Add(&amp;__array_instance__);
+    Exceptions::ThrowByType(Exceptions::kArgument, __args__);
+  }
+  const Float64Array array = Float64Array::Cast(__array_instance__);
+  const Instance&amp; __index_instance__ =
+      Instance::CheckedHandle(isolate, arguments-&gt;NativeArgAt(1));
+  if (!__index_instance__.IsSmi()) {
+    GrowableArray&lt;const Object*&gt; __args__;
+    __args__.Add(&amp;__index_instance__);
+    Exceptions::ThrowByType(Exceptions::kArgument, __args__);
+  }
+  const Smi&amp; index = Smi::Cast(__index_instance__);
+  RangeCheck(array, index.Value() * sizeof(double), sizeof(double));
+  double result = array.At(index.Value());
+  return Double::New(result);
+}</pre>
+</div>
+<p>やばい、、マクロを展開してみたら、Float64Array型のarrayから、Smi型のindexで、要素を取得していた。。</p>
+</div>
+<div class="section" id="id1">
+<h2>結局どれが呼ばれるのか。<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>ポイントになるのは、以下の2メソッドです。。</p>
+<div class="highlight-python"><pre>static RawObject* DN_HelperFloat64Array_getIndexed(Isolate* isolate, NativeArguments* arguments);
+void BootstrapNatives::DN_Float64Array_getIndexed(Dart_NativeArguments args) {</pre>
+</div>
+<p>BootstrapNatives が気になる。</p>
+<p>dart/runtime/vm/bootstrap_natives.h</p>
+<div class="highlight-python"><pre>// List of bootstrap native entry points used in the core dart library.
+#define BOOTSTRAP_NATIVE_LIST(V)                                               \
+...
+  V(Float64Array_new, 1)                                                       \
+  V(Float64Array_newTransferable, 1)                                           \
+  V(Float64Array_getIndexed, 2)                                                \
+  V(Float64Array_setIndexed, 3)                                                \
+...
+
+class BootstrapNatives : public AllStatic {
+  public:
+    static Dart_NativeFunction Lookup(Dart_Handle name, int argument_count);
+
+#define DECLARE_BOOTSTRAP_NATIVE(name, ignored)                                \
+  static void DN_##name(Dart_NativeArguments args);
+
+  BOOTSTRAP_NATIVE_LIST(DECLARE_BOOTSTRAP_NATIVE)
+
+#undef DECLARE_BOOTSTRAP_NATIVE
+};</pre>
+</div>
+<p>マクロでstatic DN_XXX(...)という関数を大量に宣言します。</p>
+<p>こういうマクロはLLVMやJVMでも登場するので、、コンパイラ業界では一般的なテクニックなのだと思います。</p>
+<p>dart/runtime/lib/byte_array.dart</p>
+<div class="highlight-python"><pre>double _getIndexed(int index) native "Float64Array_getIndexed";            // native</pre>
+</div>
+<p>上記で呼んでいる、Float64Array_getIndexedは、BootstrapNatives::Lookup()により、
+DN_Float64Array_getIndexedが呼ばれるようです。</p>
+<p>DN_Float64Array_getIndexedは、DEFINE_NATIVE_ENTRYマクロによって生成されたstatic関数です。</p>
+<p>static RawObject* DN_HelperFloat64Array_getIndexed(Isolate* isolate, NativeArguments* arguments)
+を経由して、Float64Array.At(intptr_t index)が最終的に呼ばれます。</p>
+<p>Float64Arrayクラスは、dart/runtime/vm/object.hで定義されたクラスであり、やっとscalarlistのFloat64Listが、vm/object.hのFloat64Arrayクラスに結びつきました。。</p>
+</div>
+<div class="section" id="intrinsic">
+<h2>intrinsic<a class="headerlink" href="#intrinsic" title="Permalink to this headline">¶</a></h2>
+<p>... と思うじゃないですか。</p>
+<p>実装としては上記が用意されていますが、Dart VMのIntrinsic機能により、Float64Array_getIndexedが呼ばれると、</p>
+<p>runtime/vm/intrinsicに定義された組み込み関数が呼ばれます。</p>
+<div class="highlight-python"><pre>V(_Float64Array, [], Float64Array_getIndexed, 476393480)
+V(_Float64Array, []=, Float64Array_setIndexed, 283625119)</pre>
+</div>
+<p>runtime/vm/intrinsic_ia32.cc</p>
+<div class="highlight-python"><pre>bool Intrinsifier::Float64Array_getIndexed(Assembler* assembler) {
+  Label fall_through;
+  TestByteArrayIndex(assembler, &amp;fall_through);
+  // After TestByteArrayIndex:
+  // * EAX has the base address of the byte array.
+  // * EBX has the index into the array.
+  // EBX contains the SMI index which is shifted left by 1.
+  // This shift means we only multiply the index by 4 not 8 (sizeof double).
+  // Load double precision float into XMM7.
+  __ movsd(XMM7, FieldAddress(EAX, EBX, TIMES_4,
+                              Float64Array::data_offset()));
+  // Allocate a double instance.
+  const Class&amp; double_class = Class::Handle(
+    Isolate::Current()-&gt;object_store()-&gt;double_class());
+  AssemblerMacros::TryAllocate(assembler,
+                               double_class,
+                               &amp;fall_through,
+                               Assembler::kNearJump, EAX);
+  // Store XMM7 into double instance.
+  __ movsd(FieldAddress(EAX, Double::value_offset()), XMM7);
+  __ ret();
+  __ Bind(&amp;fall_through);
+  return false;
+}</pre>
+</div>
+<p>movsdでarray+offset*4で、目的の配列位置の値を取得したのち、Double型のインスタンスを生成して、値をboxingして返しています。</p>
+<p>でもこれって、Float64Listのアセンブラの出力結果と一致しませんし、Double型へのBoxingは畳み込まれていたはず。。</p>
+</div>
+<div class="section" id="ir">
+<h2>IR<a class="headerlink" href="#ir" title="Permalink to this headline">¶</a></h2>
+<p>Intrinsicは、JITコンパイル(非最適化)の際に呼ばれるのですが、JITコンパイル(最適化)の際には、別処理になります。。</p>
+<p>中間表現上は、</p>
+<div class="highlight-python"><pre>v6 &lt;- InstanceCall:17([], v3, v4 IC[1: _Float64Array@0x37975bd9 #600]) env={ v1, v2, v3, v4, v0, a0, a1, a2, a3, a4 }</pre>
+</div>
+<p>[]シンボルは、LoadIndexedというInstanceCallの分類になるのですが、</p>
+<p>FlowGraphOptimizerで、以下のように最適化されます。</p>
+<div class="highlight-python"><pre>bool FlowGraphOptimizer::TryReplaceWithLoadIndexed(InstanceCallInstr* call) {
+  const intptr_t class_id = ReceiverClassId(call);
+  switch (class_id) {
+    case kArrayCid:
+    case kImmutableArrayCid:
+    case kGrowableObjectArrayCid:
+    case kFloat32ArrayCid:
+    case kFloat64ArrayCid:
+    case kUint8ArrayCid:
+    case kExternalUint8ArrayCid:
+      // Acceptable load index classes.
+      break;
+    default:
+      return false;
+  }
+  Value* array = NULL;
+  Value* index = NULL;
+  intptr_t array_cid = PrepareIndexedOp(call, class_id, &amp;array, &amp;index);
+  Definition* array_op = new LoadIndexedInstr(array, index, array_cid);
+  call-&gt;ReplaceWith(array_op, current_iterator());
+  RemovePushArguments(call);
+  return true;
+}</pre>
+</div>
+<p>InstanceCall([]が、 LoadIndexedInstrに変換されました。</p>
+<p>その後、</p>
+<div class="highlight-python"><pre>Representation LoadIndexedInstr::representation() const {
+  switch (class_id_) {
+    case kArrayCid:
+    case kImmutableArrayCid:
+    case kUint8ArrayCid:
+    case kExternalUint8ArrayCid:
+      return kTagged;
+    case kFloat32ArrayCid :
+    case kFloat64ArrayCid :
+      return kUnboxedDouble;
+    default:
+      UNIMPLEMENTED();
+      return kTagged;
+  }
+}
+
+void LoadIndexedInstr::EmitNativeCode(FlowGraphCompiler* compiler) {
+  Register array = locs()-&gt;in(0).reg();
+  Location index = locs()-&gt;in(1);
+
+  ...
+
+  FieldAddress element_address = index.IsRegister() ?
+      FlowGraphCompiler::ElementAddressForRegIndex(
+          class_id(), array, index.reg()) :
+      FlowGraphCompiler::ElementAddressForIntIndex(
+          class_id(), array, Smi::Cast(index.constant()).Value());
+
+  if (representation() == kUnboxedDouble) {
+    XmmRegister result = locs()-&gt;out().xmm_reg();
+    if (class_id() == kFloat32ArrayCid) {
+      // Load single precision float.
+      __ movss(result, element_address);
+      // Promote to double.
+      __ cvtss2sd(result, locs()-&gt;out().xmm_reg());
+    } else {
+      ASSERT(class_id() == kFloat64ArrayCid);
+      __ movsd(result, element_address);               &lt;-- ここ
+    }
+    return;
+  }</pre>
+</div>
+<p>Represent処理において、Float64ArrayのLoadIndexedInstrはreceiverはUnboxedDouble型であることを設定し、</p>
+<p>最終的なEmitNativeCodeにおいて、UnboxedDoubleかつFloat64ArrayCidであるため、movsd命令を出力するのでした。。</p>
+<p>出力アセンブラ</p>
+<div class="highlight-python"><pre>        ;; v6 &lt;- LoadIndexed:36(v3, v4) {PT: dynamic} {PCid: dynamic}
+0xb304af82    8b54410b               mov edx,[ecx+eax*0x2+0xb]</pre>
+</div>
+</div>
+<div class="section" id="id2">
+<h2>まとめ<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>マクロこわい</li>
+<li>非最適化時にはintrinsicが呼ばれる。</li>
+<li>最適化時には、IRになって特殊化されたEmitterが呼ばれる。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121215.html">Dart VM Advent Calendar 2012 12/15</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>

@@ -176,10 +176,23 @@
 </li>
 <li class="toctree-l1"><a class="reference internal" href="advent20121215.html">Dart VM Advent Calendar 2012 12/15</a><ul>
 <li class="toctree-l2"><a class="reference internal" href="advent20121215.html#dart-vmcore-api-scalarlist">Dart VMのcore API scalarlist</a></li>
-<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#scalarlist">scalarlist</a></li>
-<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#float64list">Float64Listのアセンブラ</a></li>
-<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#list-double">仮にList&lt;double&gt;を使用した場合、どうなるのでしょうか？</a></li>
-<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#id1">まとめ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#float64list">Float64Listのサンプル</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#id1">Float64Listの中間表現</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#id2">Float64Listのアセンブラ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#list-double">List&lt;double&gt;の中間表現</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#id3">List&lt;double&gt;のアセンブラ</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#storebarrier">StoreBarrierの判定処理</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121215.html#id4">まとめ</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="advent20121216.html">Dart VM Advent Calendar 2012 12/16</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#dart-vmcore-api-scalarlist-2">Dart VMのcore API scalarlist (2)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#scalarlist">scalarlistのソースコード</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#runtime-lib-byte-array-cc">runtime/lib/byte_array.cc</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#id1">結局どれが呼ばれるのか。</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#intrinsic">intrinsic</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#ir">IR</a></li>
+<li class="toctree-l2"><a class="reference internal" href="advent20121216.html#id2">まとめ</a></li>
 </ul>
 </li>
 <li class="toctree-l1"><a class="reference internal" href="advent201212todo.html">Dart VM Advent Calendar todo</a></li>
@@ -201,6 +214,10 @@
 <li>ExecutionCodeとRuntimeの連携</li>
 <li>FlowGraphCompiler overview</li>
 <li>Benchmark &amp; performance tuning</li>
+<li>FlowGraphCompiler intermediate representation</li>
+<li>dart core api scalarlist vs. List</li>
+<li>dart core api scalarlist mcro &amp; intrinsic</li>
+<li>Dart VMのGC Scavenger</li>
 </ul>
 <p>候補</p>
 <ul class="simple">
@@ -210,13 +227,11 @@
 <li>Runtime2 memory layout</li>
 <li>Runtime3 hotcode &amp; unoptimized path</li>
 <li>Runtime4 Deoptimization &amp; Stackmaps</li>
-<li>Dart VMのGC Scavenger</li>
 <li>Dart VMのGC Mark&amp;Sweep</li>
 <li>Dart VMのGC Root Reference &amp; Handles</li>
 <li>Dart VMのGC Extended, Weak, Peer, External, old-&gt;new pointers</li>
 <li>OptionalTypes1 (dynamic)</li>
 <li>OptionalTypes2 (generics)</li>
-<li>FlowGraphCompiler2 intermediate representation</li>
 <li>FlowGraphCompiler3 type inference</li>
 <li>FlowGraphCompiler4 boxing-unboxing &amp; representation</li>
 <li>FlowGraphCompiler5 gvn &amp; cse</li>
@@ -225,7 +240,6 @@
 <li>Dart VM Native extension</li>
 <li>Message passing &amp; Snapshot</li>
 <li>InlineCaching &amp; Stubs</li>
-<li>intrinsics1 scalarlist</li>
 <li>intrinsics2 string</li>
 <li>intrinsics3 list, map</li>
 </ul>

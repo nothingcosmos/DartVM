@@ -7,13 +7,16 @@ Dart VMのcore API scalarlist
 dartのAPI、特にcoreに用意されたAPIは、Dartのみで記述されることが少なく、
 C++で組み込み関数として記述されることが多いです。
 
-dart:scalarlistパッケージを元に、DartのAPiが、Dart VMでどのように処理されているのかを追います。
+dart:scalarlistパッケージを元に、DartのAPIが、Dart VMでどのように処理されているのかを追います。
 
-Float64Listは、かなりチューニングされているので特殊ですが。。
+scalarlistの中でも、よく使うと思われるFloat64Listを元に、
 
-scalarlist
+1回目では、Float64ListとList<double>を比較してみます。
+
+2回目では、Float64Listのソースコードから、Dart VMでどのように処理されているのかを追います。
+
+Float64Listのサンプル
 ===============================================================================
-
 scalarlistをインポートして、Float64Listを使用しています。
 
 scalarlist add::
@@ -24,13 +27,13 @@ scalarlist add::
     ret[index] = l[index] + r[index];
   }
 
-scalarlistというのは、scalarをメモリ上にシーケンシャルに敷き詰めるListである。
+scalarlistというのは、scalarをメモリ上にシーケンシャルに敷き詰めるListです。
 
 普通のList<>と比較して速いAPIです。私の場合はよくFloat64Listを使います。
 
-インターフェースはnew List<double>(n)とほぼ同じなのですが、scalarlistのFloat64Listのほうが高速です。
+インターフェースはnew List<double>(n)とほぼ同じなのですが、scalarlistのFloat64Listは組み込み型としてチューニングされており、高速です。
 
-Float64Listのアセンブラ
+Float64Listの中間表現
 ===============================================================================
 
 まずは中間表現です。 ::
@@ -82,6 +85,9 @@ TypeFeedbackされた型は、Float64Arrayになっています。これは、Fl
 CheckClassと、CheckArrayBoundが挿入されています。
 
 また、InstanceCall []がLoadIndexed, InstanceCall []=がStoreIndexedに変換されています。
+
+Float64Listのアセンブラ
+===============================================================================
 
 コード ::
 
@@ -150,7 +156,9 @@ CheckClassと、CheckArrayBoundが挿入されています。
 
 CheckArrayBoundはありますが、ほぼ1命令でset getできている点が素晴らしい、というかいろいろヤバいですね。
 
-また、double型のboxing, unboxingがすべて畳み込まれています。
+CheckArrayBoundも、条件が揃えばRangeAnalysisの解析結果を元に削除されます。
+
+double型のboxing, unboxingがすべて畳み込まれていますね。
 
 getIndexed ::
 
@@ -167,10 +175,8 @@ setIndexed ::
   0xb304adc7    0f834b000000           jnc 0xb304ae18
           ;; StoreIndexed:43(v1, v4, v7) {PCid: dynamic}
   0xb304adcd    f20f114c8307           movsd [ebx+eax*0x4+0x7],xmm1
-  
 
-
-仮にList<double>を使用した場合、どうなるのでしょうか？
+List<double>の中間表現
 ===============================================================================
 
 addvectorを呼び出す際に、List<double>型を引数として渡します。
@@ -205,9 +211,9 @@ dart src ::
       v8 <- Constant:22(#null)
       Return:23(v8)
   I
-Float64List版と大して変わらないですね。 まあ、ソースコード同じなので。
+Float64List版と大して変わらないです。Dartは、実行時dynamic typingなので、最適化前の中間表現は、List<double>もFloat64Listも同じになります。
 
-ただし、TypeFeedbackされた型が、Float64ArrayからObjectArrayになっています。
+ただし、上記は最適化JITコンパイル前の中間表現であるため、TypeFeedbackされた型がFloat64ArrayからObjectArrayになっています。
 
 最適化後の中間表現 ::
 
@@ -257,6 +263,8 @@ Float64Listの場合、LoadIndexedのreceiver型は、UnboxedDouble型です。�
    34:     ParallelMove ecx <- ecx
    34:     StoreIndexed:42(v1, v4, v11) {PCid: dynamic}
 
+List<double>のアセンブラ
+===============================================================================
 全体像は長くなるので省略し、LoadIndexedとStoreIndexedのみです。
 
 LoadIndexed ::
@@ -286,6 +294,10 @@ runtime/vm/intermediate_language_ia32.cc ::
     }
   }
 
+Storeのアセンブラは大きく異なります。
+
+Float64Array型の場合movsd命令のみですが、通常のArray型の場合、StoreIntoObjectのStubを呼び出しています。
+
 StoreIndexed ::
 
         ;; StoreIndexed:42(v1, v4, v11) {PCid: dynamic}
@@ -306,71 +318,77 @@ StoreIndexed ::
 
 Storeindexedでは、List自体がHeapのOld領域に格納されている場合に、
 
-NewからAllocateしたDouble型のインスタンスだった場合、Old領域からNew領域へん参照を持つことになります。
+NewからAllocateしたDouble型のインスタンスだった場合、Old領域からNew領域への参照を持つことになります。
 
-世代別GCの場合、Old領域からNew領域への参照を厳密に管理するため、StoreBufferという記録領域に記録する必要があります。
+世代別GCの場合、Old領域からNew領域への参照を厳密に管理するため、ListへのStoreのタイミングで、StoreBufferという記録領域に記録する必要があります。
 
-詳細は、 `GC本`_  の世代別GC、ライトバリアの章や、RubiniusやV8の章を参照してください。
+詳細は、 `GC本`_  の世代別GC、ライトバリア(WriteBarrier)の章や、RubiniusやV8の章を参照してください。
 
 上記のStoreIntoObjectFilterでは、ListがOld領域に格納されているのか判定し、必要であればUpdateStoreBufferを呼び出し、New領域への参照として記録しています。
 
-Float64Arrayの場合は、UnboxDoubleのままメモリに書き込んでいます。
+Float64Arrayの場合はUnboxDoubleのままメモリに書き込んでおり、GCが参照するオブジェクトポインタではないため、非常に高速になります。
 
-Heapに領域確保するインスタンスの場合は、メモリに書き込むと同時にStoreBurrierの必要性をチェックしています。
+StoreBarrierの判定処理
+===============================================================================
 
-bit演算のイメージ ::
-
-           8421
-  ebxが|||||001とする。  HeapTagなので、最下位は1。Objectはword*2 alignmentなので3bit目は0
-  ecxが|||||XYZとする。  HeapTagのはずなので、最下位は1のはず。
-
-  and 0x5, shr 1, adcによって、
-   ecx     ecx
-  8421    8421
-  0x0z -> 00xz
-             ^ adcでキャリーとして足す
-  ecx  =  ebx      +  ecx
-          |||||001 + 00xz
+参考 ::
 
   enum ObjectAlignment {
     // Alignment offsets are used to determine object age.
-    kNewObjectAlignmentOffset = kWordSize,
+    kNewObjectAlignmentOffset = kWordSize,                //ia32なので、WordSizeは4
     kOldObjectAlignmentOffset = 0,
     // Object sizes are aligned to kObjectAlignment.
-    kObjectAlignment = 2 * kWordSize,
+    kObjectAlignment = 2 * kWordSize,                     //WordSize=4なので、8になる。Objectは1wordのtagを持つため、ObjectAlignment=8なのかな。
 
-  WordSize=4ですが、オブジェクトの場合、WordSize*2でAlignmentされるルールです。
-  なぜなら、Objectは1wordのtagを持つため。かな？
+  bool IsNewObject() const {
+    uword addr = reinterpret_cast<uword>(this);
+    return (addr & kNewObjectAlignmentOffset) == kNewObjectAlignmentOffset; // 3bit目が1ならNew領域
+  }
 
-  andl 0x7とcmpl 0x4で検査する。
-  最下位3bitをmaskしてcmp、3bit目だけ立っていた、0x4だった場合のみ、UpdateStoreBufferの対象となる。
+  bool IsOldObject() const {
+    uword addr = reinterpret_cast<uword>(this);
+    return (addr & kNewObjectAlignmentOffset) == kOldObjectAlignmentOffset; // 3bit目が0ならOld領域
+  }
+
+bit演算の詳細(予想) ::
+
+  入力はebxとecxです。ebxがListオブジェクト、ecxがListにStoreする値になります。
+
+  ebxは、New領域のHeapTagged オブジェクトか、Old領域のHeapTagged オブジェクトの可能性があります。
+
+  そのため、ebxは、|||||X01 というアドレスを持ちます。Xは、0か1か分からないです。Xが0ならOld領域、Xが1ならNew領域です。
+
+  ecxは、ListにStoreする値になります。
+
+  そのため、New領域かOld領域のHeapTagged オブジェクト、もしくはHeapに格納しないオブジェクトになります。
+
+  そんため、ecxは、|||||Y0Z というアドレスを持ちます。Yが0か1でOld,New領域が決まります。Zが0の場合、Heapに格納しないオブジェクトになります。
+
+  ebxが|||||X01とする。 Old領域かつHeapTaggedなので、00Xとしています。Old領域かつObjectはword*2 alignmentなので3bit目は0
+  ecxが|||||Y0Zとする。 Old領域かNew領域か管理するのがY bit。HeapTaggedなのか管理するのがZ bit。
+
+  and 0x5, shr 1, adcによって、
+   ecx     ecx
+  0Y0Z -> 00YZ
+             ^ adcでキャリーとして足す
+  ecx  =   ebx +  ecx
+       =  |X01 + 00YZ
+
+  andl 0x7(|111)とcmpl 0x4(|100)で検査する。最下位3bit maskと3bit目をチェックし、UpdateStoreBuffer。
 
   // Compare with the expected bit pattern.
   cmpl(value, Immediate((kNewObjectAlignmentOffset >> 1) + kHeapObjectTag + kOldObjectAlignmentOffset + kHeapObjectTag));
 
   2(4>>1) + 1 + 0 + 1 = 4となってます。
 
-  bool IsNewObject() const {
-    uword addr = reinterpret_cast<uword>(this);
-    return (addr & kNewObjectAlignmentOffset) == kNewObjectAlignmentOffset;
-  }
+  から考察するに、|X01 + 00YZ が |100 になる条件は、ebxがOld領域のオブジェクト(|100) ecxがNew領域のオブジェクト(|011)
 
-  bool IsOldObject() const {
-    uword addr = reinterpret_cast<uword>(this);
-    return (addr & kNewObjectAlignmentOffset) == kOldObjectAlignmentOffset;
-  }
-
-  えええ、New領域のObjは、0x4が立ってるんだっけ？
-
-  から考察するに、0x4になる条件は、ebxがOld領域のオブジェクト ecxがNew領域のオブジェクト
   上記以外の場合、UpdateStoreBufferは不要。
-
 
 まとめ
 ===============================================================================
 (1) scalarlist速い。
-(2) ListのStoreIndexはいろいろややこしい
-(3) StoreBufferの説明はGC編であるとよいですね。
+(2) ListのStoreIndexは、StoreBarrier処理を行う。
 
 .. _GC本 : http://www.amazon.co.jp/exec/obidos/ASIN/4798025623/nothingcosm05-22/ref=nosim
 

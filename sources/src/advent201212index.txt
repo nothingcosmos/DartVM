@@ -18,8 +18,8 @@ Dart VM index
   advent20121213
   advent20121214
   advent20121215
+  advent20121216
   advent201212todo
-..  advent20121216
 ..  advent20121217
 ..  advent20121218
 ..  advent20121219
@@ -40,6 +40,10 @@ Dart VM index
 - ExecutionCodeとRuntimeの連携
 - FlowGraphCompiler overview
 - Benchmark & performance tuning
+- FlowGraphCompiler intermediate representation
+- dart core api scalarlist vs. List
+- dart core api scalarlist mcro & intrinsic
+- Dart VMのGC Scavenger
 
 候補
 
@@ -49,13 +53,11 @@ Dart VM index
 - Runtime2 memory layout
 - Runtime3 hotcode & unoptimized path
 - Runtime4 Deoptimization & Stackmaps
-- Dart VMのGC Scavenger
 - Dart VMのGC Mark&Sweep
 - Dart VMのGC Root Reference & Handles
 - Dart VMのGC Extended, Weak, Peer, External, old->new pointers
 - OptionalTypes1 (dynamic)
 - OptionalTypes2 (generics)
-- FlowGraphCompiler2 intermediate representation
 - FlowGraphCompiler3 type inference
 - FlowGraphCompiler4 boxing-unboxing & representation
 - FlowGraphCompiler5 gvn & cse
@@ -64,6 +66,5 @@ Dart VM index
 - Dart VM Native extension
 - Message passing & Snapshot
 - InlineCaching & Stubs
-- intrinsics1 scalarlist
 - intrinsics2 string
 - intrinsics3 list, map
