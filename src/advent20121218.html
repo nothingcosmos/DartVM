@@ -1,0 +1,152 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/18 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Garbage Collection Advent Calendar 2012 12/17" href="advent20121217.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/18</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121217.html">Garbage Collection Advent Calendar 2012 12/17</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-18">
+<h1>Dart VM Advent Calendar 2012 12/18<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-18" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dartcore-api">
+<h2>DartのCore API<a class="headerlink" href="#dartcore-api" title="Permalink to this headline">¶</a></h2>
+<p>Dart SDKのCore APIは、dartだけで記述されていることが少なく、途中からnative extensionを使ってC++実装を呼び出していたり、</p>
+<p>Core APIのクラスと対となる、Dart VM内のC++クラスと紐づいていることが多いです。</p>
+<p>先々日に紹介したscalarlistパッケージのFloat64Listも、Dart VM内にFloat64Arrayクラスが定義されていました。</p>
+<p>今回はStringについて紹介しながら、DartのAPIとDart VM間の階層関係をざっくりとみていきます。</p>
+</div>
+<div class="section" id="dart">
+<h2>Dartの階層構造<a class="headerlink" href="#dart" title="Permalink to this headline">¶</a></h2>
+<p>dartのcore APIであるStringを例に、どのように階層を重ねているのか。</p>
+<p>登場するメソッドは、String.concatと、new String()です。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-d455298bed09984a0b9aa11b9fb2b48f885f1d96.png" alt="None" width="1024" height="440" />
+</p>
+<p>DartのAPIの階層は、上記のように階層に分かれます。 ※ ほんとはもっと細かく分かれるかも。。</p>
+</div>
+<div class="section" id="id1">
+<h2>dartのライブラリ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>Dart SDKのライブラリには、主にsdk/libの下で定義されている、純粋にdartで記述されたライブラリと、
+sdk/libから呼ばれる、dartのinternalクラスに分けられます。</p>
+<p>dartのinternalクラスは、高速化のためにC++で記述されたメソッド(native extension)を呼び出します。</p>
+</div>
+<div class="section" id="native">
+<h2>nativeシンボル<a class="headerlink" href="#native" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMのnative extensionを使用して、Dart VM内部のstatic関数を、DartのCore APIに対して公開しています。</p>
+<p>native extensionは、JITコンパイルしたコードを紹介した際に登場したStubsや、CallToRuntimeとは違います。</p>
+<p>runtime/libの下で定義されるC++のコードは、DEFINE_NATIVE_ENTRYマクロで定義され、あくまでnative extension機能を使用し、Core APIから呼び出されます。</p>
+<p>CallToRuntimeから呼ばれるシンボルは、runtime/vmの下で定義され、DEFINE_RUNTIME_ENTRYマクロで定義されます。</p>
+</div>
+<div class="section" id="dart-vm">
+<h2>Dart VMのオブジェクト<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+<img alt="../images/dart_object.png" src="../images/dart_object.png" />
+<img alt="../images/dart_rawobject.png" src="../images/dart_rawobject.png" />
+<p>Dartのクラスと対応するDart VM内のクラスは、多くの場合 ObectクラスとRawObjectクラスを継承しています。</p>
+<p>Objectクラスの継承図と、RawObjectクラスの継承図はそっくりです。</p>
+<p>Objectクラスは、主にRawObjectに対する操作のみを定義しています。</p>
+<p>RawObjectクラスは、実データを内包し、管理するクラスです。</p>
+<p>Objectクラスは、実データを定義するRawObjectクラスへの参照を持ち、必ずペアで定義されています。</p>
+<p>そのため、Objectクラスを継承するクラスは、raw_フィールドのみ持ちます。</p>
+<p>また、GCのObjectPointerVisitorは、RawObjectを継承したクラスのみを対象とします。</p>
+</div>
+<div class="section" id="gc">
+<h2>GCとの関連<a class="headerlink" href="#gc" title="Permalink to this headline">¶</a></h2>
+<p>GCのVisitorはObjectPointerを辿りながら、GC対象を探します。</p>
+<p>その際GCのVisitorは、RawObjectを継承したクラスのみ辿ります。</p>
+<p>RawObjectは、最初の1wordがObjctTagが埋まっており、2word以降から実データが定義されています。</p>
+<p>上記のRawOneByteStringの場合、実データはuint8_t[]になりますが、実データは辿りません。RawOneByteStringのインスタンスが、ObjectPointerの末端になります。</p>
+<p>また、RawOneByteStringであるため、uint8_[]のsizeを格納したlengthフィールドが定義されているはずですが、GCのVisitorに辿らせないような配慮がされています。</p>
+<p>RawArrayだった場合には、Arrayとして内包したObjectPointerが多数あるため、GCのVisitorは内包したObjectPointerを辿ります。</p>
+</div>
+<div class="section" id="id2">
+<h2>まとめ<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>Coreのクラスと対となるクラスがDart VM内に定義されている。</li>
+<li>Dart VM内には、ObjectとRawObjectが存在する。</li>
+<li>GCのVisitorが辿るのはRawObject</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121217.html">Garbage Collection Advent Calendar 2012 12/17</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
