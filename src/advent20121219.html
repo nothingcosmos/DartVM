@@ -1,0 +1,251 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/19 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/18" href="advent20121218.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/19</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121218.html">Dart VM Advent Calendar 2012 12/18</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-19">
+<h1>Dart VM Advent Calendar 2012 12/19<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-19" title="Permalink to this headline">¶</a></h1>
+<p>書く時間がなくなりつつあるので、とりあえず最適化に関してです。</p>
+<div class="section" id="gvn-dominatorbasedcse">
+<h2>GVN(DominatorBasedCSE)<a class="headerlink" href="#gvn-dominatorbasedcse" title="Permalink to this headline">¶</a></h2>
+<p>以前、Dart VMの最適化JITコンパイルの最適化に関してふれましたが、もうちょっと深く掘り下げようと思います。</p>
+<p>本日のお題はこれ</p>
+<div class="highlight-python"><pre>if (FLAG_common_subexpression_elimination) {
+  if (DominatorBasedCSE::Optimize(flow_graph)) {
+    // Do another round of CSE to take secondary effects into account:
+    // e.g. when eliminating dependent loads (a.x[0] + a.x[0])
+    // TODO(fschneider): Change to a one-pass optimization pass.
+    DominatorBasedCSE::Optimize(flow_graph);
+  }
+}</pre>
+</div>
+<p>最適化の名称は、DominatorBasedCSEになってますけど、これどう考えても、GlobalValueNumberingですよね。。</p>
+<p>作者のvegorovさんとfschneiderさんは、GVNっていいたくない理由でもあるんでしょうか。</p>
+<p>GVN(GlobalValueNumbering)というのは、SSA形式の代表的な最適化の一つで、冗長な命令を削除する最適化です。</p>
+<p>LLVMでも使っている、大変強力な最適化ですので、興味のある人はLLVMも参照してみるとよいと思います。※  Dart VMのDominatorBasedCSEの5倍複雑です。。</p>
+<p>DominatorCSEは、runtime/vm/flow_graph_optimizer に記述されてます。</p>
+</div>
+<div class="section" id="optimize">
+<h2>Optimize<a class="headerlink" href="#optimize" title="Permalink to this headline">¶</a></h2>
+<p>入り口です。</p>
+<div class="highlight-python"><pre>bool DominatorBasedCSE::Optimize(FlowGraph* graph) {
+  bool changed = false;
+  if (FLAG_load_cse) {
+    GrowableArray&lt;BitVector*&gt; kill_by_offs(10);
+    DirectChainedHashMap&lt;LoadKeyValueTrait&gt; map;
+    const intptr_t max_expr_id =
+        NumberLoadExpressions(graph, &amp;map, &amp;kill_by_offs);
+    if (max_expr_id &gt; 0) {
+      LoadOptimizer load_optimizer(graph, max_expr_id, &amp;map, kill_by_offs);
+      load_optimizer.Optimize();
+    }
+  }
+
+  DirectChainedHashMap&lt;PointerKeyValueTrait&lt;Instruction&gt; &gt; map;
+  changed = OptimizeRecursive(graph-&gt;graph_entry(), &amp;map) || changed;
+
+  return changed;
+}</pre>
+</div>
+<p>メイン処理は2種類あって、LoadOptimizerとOptimieRecursiveです。</p>
+<p>LoadOptimizerは、冗長なLoad命令を除去します。</p>
+<p>OptimizeRecursiveが、CSEで様々な命令を除去します。</p>
+<p>処理のキモとなるのは、DirectChainedHasheMapになり、CSEの基本処理はこのmapが握っています。</p>
+<p>DominatorとBBを辿りながらIRをinsertしていって、SideEffectに注意しながらLookUpして、同一のIRが見つかれば、そのIRは冗長だと判定して削除します。</p>
+<p>mapによってLookUpするので、IRをhashにシリアライズします。</p>
+<p>runtime/vm/hash_map.h::Hashcode</p>
+<div class="highlight-python"><pre>uword hash = static_cast&lt;uword&gt;(KeyValueTrait::Hashcode(key));</pre>
+</div>
+<p>runtime/vm/intermediate_language.cc</p>
+<div class="highlight-python"><pre>intptr_t Instruction::Hashcode() const {
+  intptr_t result = tag();
+  for (intptr_t i = 0; i &lt; InputCount(); ++i) {
+    Value* value = InputAt(i);
+    intptr_t j = value-&gt;definition()-&gt;ssa_temp_index();
+    result = result * 31 + j;
+  }
+  return result;
+}</pre>
+</div>
+<p>baseの値は、対象IRのtag()、つまりIRの種別(AddとかSubとか)を表します。</p>
+<p>そのtag()に、IRの引数の値(SSA形式であるため、ssa_temp_index())を加算していきます。</p>
+<p>最終的にhashを計算します。</p>
+<p>例を示すと、</p>
+<div class="highlight-python"><pre>v7 &lt;- UnboxedDoubleBinaryOp:15(-,     v1,    v6)
+      ^                        ^      ^      ^
+      tag                      input0 input1 input2
+
+v9 &lt;- UnboxedDoubleBinaryOp:19(*, v1, v8)    // insert
+
+v10 &lt;- UnboxedDoubleBinaryOp:19(*, v1, v8)   // lookup  v9とv10は等しいので、v10は冗長</pre>
+</div>
+<p>map { Hashcode(v7):v7, Hashcode(v9):v9 } というイメージでしょうか。</p>
+</div>
+<div class="section" id="optimizerecursive">
+<h2>OptimizeRecursive<a class="headerlink" href="#optimizerecursive" title="Permalink to this headline">¶</a></h2>
+<p>code</p>
+<div class="highlight-python"><pre>bool DominatorBasedCSE::OptimizeRecursive(
+    BlockEntryInstr* block,
+    DirectChainedHashMap&lt;PointerKeyValueTrait&lt;Instruction&gt; &gt;* map) {
+  bool changed = false;
+  // BB単位の処理
+  // BB中のIRを1命令ずつ捜査して、SideEffectがなければ、LookUP
+  for (ForwardInstructionIterator it(block); !it.Done(); it.Advance()) {
+    Instruction* current = it.Current();
+    if (current-&gt;AffectedBySideEffect()) continue; //Currentの命令に副作用がある場合、削除候補でない。
+    Instruction* replacement = map-&gt;Lookup(current);
+    if (replacement == NULL) {
+      map-&gt;Insert(current);     // Lookupして冗長な命令がなければmapにInsert
+      continue;
+    }
+    // Replace current with lookup result.
+    ReplaceCurrentInstruction(&amp;it, current, replacement); //Lookupした冗長な命令をReplace
+    changed = true;
+  }
+
+  // 親BBの支配する 子BBを再起的に辿る。その際に、支配する親BBのMapを共有する。
+  // Process children in the dominator tree recursively.
+  intptr_t num_children = block-&gt;dominated_blocks().length();
+  for (intptr_t i = 0; i &lt; num_children; ++i) {
+    BlockEntryInstr* child = block-&gt;dominated_blocks()[i];
+    if (i  &lt; num_children - 1) {
+      // Copy map.
+      DirectChainedHashMap&lt;PointerKeyValueTrait&lt;Instruction&gt; &gt; child_map(*map);
+      changed = OptimizeRecursive(child, &amp;child_map) || changed;
+    } else {
+      // Reuse map for the last child.
+      changed = OptimizeRecursive(child, map) || changed;
+    }
+  }
+  return changed;
+}</pre>
+</div>
+<p>BB中のIRを先頭から辿りながら、mapに順にinsertしていきます。</p>
+<p>Lookupして同じ意味のIRを見つけた場合、そのIRは冗長と判断し、削除します。</p>
+<p>やばい、もう説明のしようがない、、</p>
+</div>
+<div class="section" id="affectedbysideeffect">
+<h2>AffectedBySideEffect<a class="headerlink" href="#affectedbysideeffect" title="Permalink to this headline">¶</a></h2>
+<p>SideEffectの影響を受けないIRを、試しに列挙してみます。</p>
+<ol class="arabic simple">
+<li>ConstantInstr</li>
+<li>AssertAssignableInstr</li>
+<li>AssertBooleanInstr</li>
+<li>StrictCompareInstr</li>
+<li>LoadStaticFieldInstr</li>
+<li>StringCharCodeAtInstr</li>
+<li>StringFromCharCodeInstr</li>
+<li>LoadIndexedInstr</li>
+<li>LoadFieldInstr</li>
+<li>CheckEitherNonSmiInstr</li>
+<li>BoxDoubleInstr</li>
+<li>BoxIntegerInstr</li>
+<li>UnboxDoubleInstr</li>
+<li>UnboxIntegerInstr</li>
+<li>BinaryDoubleOpInstr</li>
+<li>BinaryMintOpInstr</li>
+<li>ShiftMintOpInstr</li>
+<li>UnaryMintOpInstr</li>
+<li>BinarySmiOpInstr</li>
+<li>CheckClassInstr</li>
+<li>CheckSmiInstr</li>
+<li>CheckArrayBoundInstr</li>
+</ol>
+<p>上記にあげたIRは、CSEによって冗長だと判定されて、削除される可能性があります。</p>
+<p>上記以外は、どんな副作用があるのか判定できないため、削除しません。</p>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>よくわからないエントリーでしたね。</li>
+<li>mapにinsertしてlookupするだけの簡単なお仕事。</li>
+<li>LoadOptimizerは、Load,Storeのフィールドの対応を取りながら、冗長なLoadを除去します。詳細は機会があれば、、</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121218.html">Dart VM Advent Calendar 2012 12/18</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
