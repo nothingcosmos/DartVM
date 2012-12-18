@@ -21,8 +21,8 @@ Dart VM index
   advent20121216
   advent20121217
   advent20121218
+  advent20121219
   advent201212todo
-..  advent20121219
 
 努力目標
 ===============================================================================
@@ -44,6 +44,8 @@ Dart VM index
 - dart core api scalarlist vs. List
 - dart core api scalarlist mcro & intrinsic
 - Dart VMのGC Scavenger
+- Dart API Layer
+- intrinsics string
 
 候補
 
@@ -66,5 +68,4 @@ Dart VM index
 - Dart VM Native extension
 - Message passing & Snapshot
 - InlineCaching & Stubs
-- intrinsics2 string
 - intrinsics3 list, map
