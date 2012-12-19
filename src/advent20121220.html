@@ -1,0 +1,281 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/20 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/19" href="advent20121219.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/20</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121219.html">Dart VM Advent Calendar 2012 12/19</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-20">
+<h1>Dart VM Advent Calendar 2012 12/20<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-20" title="Permalink to this headline">¶</a></h1>
+<p>本日も最適化に関してです。。</p>
+<div class="section" id="licm">
+<h2>LICM<a class="headerlink" href="#licm" title="Permalink to this headline">¶</a></h2>
+<p>LICMとは、ループ不変式の移動という、伝統的な最適化のうちの1つです。</p>
+<p>ループで更新されない式を、ループの外(前だったり後だったり)に移動します。</p>
+<p>大体のJITコンパイラには実装されています。</p>
+<p>本日のお題はこれ</p>
+<div class="highlight-python"><pre>if (FLAG_loop_invariant_code_motion &amp;&amp;
+    (parsed_function.function().deoptimization_counter() &lt;
+     (FLAG_deoptimization_counter_threshold - 1))) {
+  LICM::Optimize(flow_graph);
+}</pre>
+</div>
+</div>
+<div class="section" id="optimize">
+<h2>Optimize<a class="headerlink" href="#optimize" title="Permalink to this headline">¶</a></h2>
+<p>入り口です。:</p>
+<div class="highlight-python"><pre>void LICM::Optimize(FlowGraph* flow_graph) {
+  GrowableArray&lt;BlockEntryInstr*&gt; loop_headers;
+  flow_graph-&gt;ComputeLoops(&amp;loop_headers);                // Loopの収集
+
+  for (intptr_t i = 0; i &lt; loop_headers.length(); ++i) {  // Loopをイテレート
+    BlockEntryInstr* header = loop_headers[i];
+    // Skip loop that don't have a pre-header block.
+    BlockEntryInstr* pre_header = FindPreHeader(header);  // preheaderを探す。hoist先。
+    if (pre_header == NULL) continue;
+
+    for (BitVector::Iterator loop_it(header-&gt;loop_info());
+         !loop_it.Done();
+         loop_it.Advance()) {
+      BlockEntryInstr* block = flow_graph-&gt;preorder()[loop_it.Current()];
+      for (ForwardInstructionIterator it(block);              // block内の命令を順に
+           !it.Done();
+           it.Advance()) {
+        Instruction* current = it.Current();
+        if (!current-&gt;IsPushArgument() &amp;&amp; !current-&gt;AffectedBySideEffect()) { //副作用をもつ場合pass
+          bool inputs_loop_invariant = true;
+          for (int i = 0; i &lt; current-&gt;InputCount(); ++i) {   // loop不変かチェック
+            Definition* input_def = current-&gt;InputAt(i)-&gt;definition(); // currentのoperandを走査
+            if (!input_def-&gt;GetBlock()-&gt;Dominates(pre_header)) { // operandの所属するblockが、pre_headerを支配しない場合、
+              inputs_loop_invariant = false;                     // blockがpre_headerを支配する場合、currentより前に定義されたことになる。
+              break;
+            }
+          }
+          if (inputs_loop_invariant &amp;&amp;
+              !current-&gt;IsAssertAssignable() &amp;&amp;
+              !current-&gt;IsAssertBoolean()) {
+            // TODO(fschneider): Enable hoisting of Assert-instructions
+            // if it safe to do.
+            Hoist(&amp;it, pre_header, current);             // loop-preheaderに命令移動を試す
+          } else if (current-&gt;IsCheckSmi() &amp;&amp;
+                     current-&gt;InputAt(0)-&gt;definition()-&gt;IsPhi()) {
+            TryHoistCheckSmiThroughPhi(                  // promote dynamic to Smi
+                &amp;it, header, pre_header, current-&gt;AsCheckSmi());
+          }
+        }
+      }
+    }
+  }
+}</pre>
+</div>
+<p>ループ不変というのは、命令のオペランドが、すべてループ外で定義された値ということです。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-8fee5ad688540c8dec57cc45fd6173a4d9e56ca9.png" alt="None" width="256" height="360" />
+</p>
+<p>メインの最適化は、Hoist()とTryHoistCheckSmiThroughPhi()です。</p>
+<p>Hoist()は、ループ中の不変式を、loop_headerに移動します。</p>
+<p>TryHoistCheckSmiThroughPhi()は少々特殊です。</p>
+<p>前</p>
+<div class="highlight-python"><pre>BB1[loop_preheader]
+  ...
+  v2 &lt;- xxx
+BB2[loop_header]
+  v1 &lt;- phi(v2, v4) {PT: dynamic}
+  checkSmi(v1)</pre>
+</div>
+<p>後</p>
+<div class="highlight-python"><pre>BB1[loop_preheader]
+  ...
+  v2 &lt;- xxx
+  checkSmi(v2)
+BB2[loop_header]
+  v1 &lt;- phi(v2, v4) {PT: Smi}</pre>
+</div>
+<p>checkSmiをループの外に追い出して、phiの型をdynamicからSmi型にpromotionします。</p>
+</div>
+<div class="section" id="hoist">
+<h2>Hoist<a class="headerlink" href="#hoist" title="Permalink to this headline">¶</a></h2>
+<p>Hoist</p>
+<div class="highlight-python"><pre>void LICM::Hoist(ForwardInstructionIterator* it,
+                 BlockEntryInstr* pre_header,
+                 Instruction* current) {
+  // TODO(fschneider): Avoid repeated deoptimization when
+  // speculatively hoisting checks.
+  if (FLAG_trace_optimization) {
+    OS::Print("Hoisting instruction %s:%"Pd" from B%"Pd" to B%"Pd"\n",
+              current-&gt;DebugName(),
+              current-&gt;GetDeoptId(),
+              current-&gt;GetBlock()-&gt;block_id(),
+              pre_header-&gt;block_id());
+  }
+  // Move the instruction out of the loop.
+  it-&gt;RemoveCurrentFromGraph();
+  GotoInstr* last = pre_header-&gt;last_instruction()-&gt;AsGoto();
+  current-&gt;InsertBefore(last);
+  // Attach the environment of the Goto instruction to the hoisted
+  // instruction and set the correct deopt_id.
+  ASSERT(last-&gt;env() != NULL);
+  last-&gt;env()-&gt;DeepCopyTo(current);
+  current-&gt;deopt_id_ = last-&gt;GetDeoptId();
+}</pre>
+</div>
+<p>Hoist対象の命令、itを、pre_headerの最後尾に移動します。</p>
+</div>
+<div class="section" id="tryhoistchecksmithroughphi">
+<h2>TryHoistCheckSmiThroughPhi<a class="headerlink" href="#tryhoistchecksmithroughphi" title="Permalink to this headline">¶</a></h2>
+<p>try</p>
+<div class="highlight-python"><pre>void LICM::TryHoistCheckSmiThroughPhi(ForwardInstructionIterator* it,
+                                      BlockEntryInstr* header,
+                                      BlockEntryInstr* pre_header,
+                                      CheckSmiInstr* current) {
+  PhiInstr* phi = current-&gt;InputAt(0)-&gt;definition()-&gt;AsPhi();
+  if (!header-&gt;loop_info()-&gt;Contains(phi-&gt;block()-&gt;preorder_number())) {
+    return;
+  }
+
+  if (phi-&gt;GetPropagatedCid() == kSmiCid) {  // Phiが型伝搬の結果既にSmiだった場合、不要なCheckSmiを削除
+    it-&gt;RemoveCurrentFromGraph();
+    return;
+  }
+
+  // Check if there is only a single kDynamicCid input to the phi that
+  // comes from the pre-header.
+  const intptr_t kNotFound = -1;
+  intptr_t non_smi_input = kNotFound;
+  for (intptr_t i = 0; i &lt; phi-&gt;InputCount(); ++i) {
+    Value* input = phi-&gt;InputAt(i);
+    if (input-&gt;ResultCid() != kSmiCid) {
+      if ((non_smi_input != kNotFound) || (input-&gt;ResultCid() != kDynamicCid)) {
+        // There are multiple kDynamicCid inputs or there is an input that is
+        // known to be non-smi.
+        return;
+      } else {
+        non_smi_input = i;  // phiのオペランドの片割れのSmiでない値
+      }
+    }
+  }
+
+  // dynamicなphiのオペランドが見つからなかった、
+  // もしくはdynamic型のphiのオペランドがpre_headerで定義されていない。。(backedge側がdynamic型)
+  if ((non_smi_input == kNotFound) ||
+      (phi-&gt;block()-&gt;PredecessorAt(non_smi_input) != pre_header)) {
+    return;
+  }
+
+  // Host CheckSmi instruction and make this phi smi one.
+  Hoist(it, pre_header, current);   // checkSmiをpre_headerへ移動  (1)
+
+  // Replace value we are checking with phi's input. Maintain use lists.
+  Definition* non_smi_input_defn = phi-&gt;InputAt(non_smi_input)-&gt;definition(); // phiの旧inputを取得
+  current-&gt;value()-&gt;RemoveFromInputUseList();
+  current-&gt;value()-&gt;set_definition(non_smi_input_defn);  &lt;-- phiの旧inputをcheckSmiのinputへ(2)
+  current-&gt;value()-&gt;AddToInputUseList();
+
+  phi-&gt;SetPropagatedCid(kSmiCid);  // dynamicからSmiへ (3)
+}</pre>
+</div>
+<p>後</p>
+<div class="highlight-python"><pre>BB1[loop_preheader]
+  ...
+  v2 &lt;- xxx
+  checkSmi(v2)    &lt;-- (1) 移動
+           ^ (2) v2へ変更
+BB2[loop_header]
+  v1 &lt;- phi(v2, v4) {PT: Smi} &lt;-- (3) Smiへ変更</pre>
+</div>
+<p>CheckSmiがCastのように値を定義せず、Deoptimizeするだけなのが面白いですね。</p>
+<p>CheckSmiをHoistしただけで、phiのオペランドv2に変化はないです。Smi型に変わっただけ。</p>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>よくわからない手抜きエントリーでした。。</li>
+<li>LICMは、ループ不変な命令をループのpre_headerへ移動する。</li>
+<li>Phiがdynamic型、かつCheckSmi命令のinputである場合、PhiをSmiへ置き換え可能か試行する。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121219.html">Dart VM Advent Calendar 2012 12/19</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
