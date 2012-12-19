@@ -22,6 +22,7 @@ Dart VM index
   advent20121217
   advent20121218
   advent20121219
+  advent20121220
   advent201212todo
 
 努力目標
@@ -46,6 +47,8 @@ Dart VM index
 - Dart VMのGC Scavenger
 - Dart API Layer
 - intrinsics string
+- FlowGraphCompiler gvn & cse
+- FlowGraphCompiler licm
 
 候補
 
@@ -62,7 +65,6 @@ Dart VM index
 - OptionalTypes2 (generics)
 - FlowGraphCompiler3 type inference
 - FlowGraphCompiler4 boxing-unboxing & representation
-- FlowGraphCompiler5 gvn & cse
 - FlowGraphCompiler6 inlining
 - FlowGraphCompiler7 register allocation
 - Dart VM Native extension
