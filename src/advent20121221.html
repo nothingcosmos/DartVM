@@ -1,0 +1,223 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/21 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/20" href="advent20121220.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/21</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121220.html">Dart VM Advent Calendar 2012 12/20</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-21">
+<h1>Dart VM Advent Calendar 2012 12/21<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-21" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dartstring">
+<h2>DartのStringに関して<a class="headerlink" href="#dartstring" title="Permalink to this headline">¶</a></h2>
+<p>Dart には、String系のAPIとして以下が定義されています。</p>
+<ol class="arabic simple">
+<li>String</li>
+<li>StringBuffer</li>
+<li>Strings</li>
+<li>interpolate &#8220;${a}&#8221;こういうの</li>
+</ol>
+<p>concatしてみます。</p>
+</div>
+<div class="section" id="concat">
+<h2>concat<a class="headerlink" href="#concat" title="Permalink to this headline">¶</a></h2>
+<p>src</p>
+<div class="highlight-python"><pre>String concatString(String init, int i) {
+  // must toString()
+  return "&lt;test&gt;".concat(init).concat(i.toString()).concat("&lt;/test&gt;");
+}</pre>
+</div>
+<p>String.concat(String)で文字列をつなげます。</p>
+<p>Stringのconcatは、以下のような呼び出しの連鎖になります。</p>
+<p>concat</p>
+<div class="highlight-python"><pre>bench/stringconcat.dart::stringconcat()
+  -&gt; sdk/lib/String.dart::String.concat()
+    -&gt; runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"
+      -&gt; runtime/lib/string.cc::DEFINE_NATIVE_ENTRY(String_concat)
+        -&gt; dart::String::Concat()
+          -&gt; dart::OneByteString::Concat()
+            -&gt; dart::String::Copy()
+            -&gt; dart::OneByteString::raw()</pre>
+</div>
+<p>dartのソースコード、concatStringは、どのようにJITコンパイルされるのでしょうか？</p>
+</div>
+<div class="section" id="ir">
+<h2>IR<a class="headerlink" href="#ir" title="Permalink to this headline">¶</a></h2>
+<p>concatString</p>
+<div class="highlight-python"><pre> 2: B1[target] ParallelMove ecx &lt;- S-2, eax &lt;- S-1
+ 4:     CheckStackOverflow:2()
+ 6:     v4 &lt;- Constant:3(#&lt;test&gt;) {PT: _OneByteString@0x36924d72} {PCid: _OneByteString@0x36924d72}
+ 8:     PushArgument:4(v4) {PCid: dynamic}
+10:     PushArgument:6(v2) {PCid: dynamic}
+12:     v5 &lt;- PolymorphicInstanceCall:24(concat, v4, v2 IC[1: _OneByteString@0x36924d72 #600]) {PT: dynamic} {PCid: dynamic} env={ v1 [S-3], v2 [S-2], v3 [S-1], a0, a1 }
+13:     ParallelMove eax &lt;- eax
+14:     ParallelMove S+0 &lt;- eax
+14:     PushArgument:8(v5) {PCid: dynamic}
+15:     ParallelMove ecx &lt;- S-1
+16:     PushArgument:10(v3) {PCid: dynamic}
+18:     CheckSmi:11(v3) env={ v1 [S-3], v2 [S-2], v3 [ecx], a0, a1 }
+20:     v6 &lt;- PolymorphicInstanceCall:26(toString, v3 IC[1: _Smi@0x36924d72 #600]) {PT: dynamic} {PCid: dynamic} env={ v1 [S-3], v2 [S-2], v3 [S-1], a0, a1 }
+21:     ParallelMove eax &lt;- eax
+22:     PushArgument:12(v6) {PCid: dynamic}
+23:     ParallelMove eax &lt;- S+0
+24:     CheckClass:13(v5 IC[1: _OneByteString@0x36924d72 #600]) env={ v1 [S-3], v2 [S-2], v3 [S-1], a0, a1 }
+26:     v7 &lt;- PolymorphicInstanceCall:28(concat, v5, v6 IC[1: _OneByteString@0x36924d72 #600]) {PT: dynamic} {PCid: dynamic} env={ v1 [S-3], v2 [S-2], v3 [S-1], a0, a1 }
+27:     ParallelMove eax &lt;- eax
+28:     PushArgument:14(v7) {PCid: dynamic}
+30:     v8 &lt;- Constant:15(#&lt;/test&gt;) {PT: _OneByteString@0x36924d72} {PCid: _OneByteString@0x36924d72}
+32:     PushArgument:16(v8) {PCid: dynamic}
+34:     CheckClass:17(v7 IC[1: _OneByteString@0x36924d72 #600]) env={ v1 [S-3], v2 [S-2], v3 [S-1], a0, a1 }
+36:     v9 &lt;- PolymorphicInstanceCall:30(concat, v7, v8 IC[1: _OneByteString@0x36924d72 #600]) {PT: dynamic} {PCid: dynamic} env={ v1 [S-3], v2 [S-2], v3 [S-1], a0, a1 }
+37:     ParallelMove eax &lt;- eax
+38:     Return:18(v9)</pre>
+</div>
+<p>concatString()はinline展開されて、上記のようなIRになっています。</p>
+<p>具体的には、以下のdartのソースコードまでがinline展開されています。</p>
+<div class="highlight-python"><pre>bench/stringconcat.dart::stringconcat()
+  -&gt; sdk/lib/String.dart::String.concat() &lt;-- ここまで
+    /* inline展開の壁 */
+    -&gt; runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"</pre>
+</div>
+<p>concatがPolymorphicInstanceCallになっています。 おそらく、concatに対応するIRが存在しないためでしょう。</p>
+<p>call</p>
+<div class="highlight-python"><pre>-&gt; runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"
+/* dartとC++のソースコードの壁 */
+  -&gt; runtime/lib/string.cc::DEFINE_NATIVE_ENTRY(String_concat)
+    -&gt; dart::String::Concat()
+      -&gt; dart::OneByteString::Concat()
+        -&gt; dart::String::Copy()
+        -&gt; dart::OneByteString::raw()</pre>
+</div>
+<p>code</p>
+<div class="highlight-python"><pre>        ;; CheckClass:13(v5 IC[1: _OneByteString@0x36924d72 #600])
+0xb2fc91a9    a801                   test al,0x1              // HeapTag check
+0xb2fc91ab    0f8470000000           jz 0xb2fc9221            // goto deoptimization
+0xb2fc91b1    0fb74801               movzx_w ecx,[eax+0x1]    // load classid
+0xb2fc91b5    83f94d                 cmp ecx,0x4d             // class check
+0xb2fc91b8    0f8563000000           jnz 0xb2fc9221           // goto deoptimization
+        ;; v7 &lt;- PolymorphicInstanceCall:28(concat, v5, v6 IC[1: _OneByteString@0x36924d72 #600]) {PT: dynamic} {PCid: dynamic}
+0xb2fc91be    bac1d916b3             mov edx,0xb316d9c1  Array[2, 2, null]
+0xb2fc91c3    e860713702             call 0xb5340328  [stub: CallStaticFunction]
+0xb2fc91c8    83c408                 add esp,0x8</pre>
+</div>
+<p>PolymorphicInstanceCallですが、1種類しか呼び出さないため、速そうです。</p>
+<p>CallStaticFunctionで、concatを呼び出すだけですね。</p>
+<p>CallStaticFunctionから呼び出すconcatは何なのでしょうか。</p>
+<p>それは、runtime/lib/string_base.dart _StringBase.concat()です。</p>
+<p>concatは、dartのString_base.concat から、 native &#8220;String_concat&#8221; を呼び出します。</p>
+<p>最終的には、Dart VM内のdart::String.Concat()関数を呼び出します。</p>
+<div class="highlight-python"><pre>RawOneByteString* OneByteString::Concat(const String&amp; str1,
+                                        const String&amp; str2,
+                                        Heap::Space space) {
+  intptr_t len1 = str1.Length();
+  intptr_t len2 = str2.Length();
+  intptr_t len = len1 + len2;
+  const String&amp; result = String::Handle(OneByteString::New(len, space));
+  String::Copy(result, 0, str1, 0, len1);
+  String::Copy(result, len1, str2, 0, len2);
+  return OneByteString::raw(result);
+}</pre>
+</div>
+<p>JITコンパイルされたdartのコードから、最終的に上記のConcatが呼ばれます。</p>
+<p>dartのlib用に公開している、nativeなシンボルを経由する場合、オーバーヘッドはどのくらいなのでしょうか。</p>
+<p>上記オーバーヘッドを削除して、更なる高速化を目指す場合、二つの方法があります。</p>
+<p>1つ目は、Concatに対応するIRを追加し、Emit時に上記の処理をアセンブラで出力する。</p>
+<p>2つ目は、String_Concatシンボルの処理を複数のIRの組み合わせに置換することです。</p>
+<p>そういえば、V8のStringAdd処理などは、アセンブラマクロになっていて、アセンブラでかかれていました。</p>
+<p>V8の文字列処理が速い理由は、上記のような処理をアセンブラに置き換えていって、すべてVM内で処理していった結果なのかも、しれませんね。</p>
+<p>(´Д｀；)ハアハア</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-24b9d2e96b9ff43ad34aae8d100f825fd9a8cfe8.png" alt="None" width="1216" height="440" />
+</p>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>dartのString.concat()は、最終的にdart::OneByteString::Concat()を呼び出す。</li>
+<li>JITコンパイルされたコードは、native extensionによって公開されたシンボルを呼び出す。</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121220.html">Dart VM Advent Calendar 2012 12/20</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
