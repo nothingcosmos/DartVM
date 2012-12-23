@@ -25,6 +25,7 @@ Dart VM index
   advent20121220
   advent20121221
   advent20121223
+  advent20121224
   advent201212todo
 
 努力目標

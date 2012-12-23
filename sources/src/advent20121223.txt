@@ -31,13 +31,12 @@ advent calendar drivenに色々調べてきた結果、全体アーキテクチ�
     Platform [label="platform dependent" color=lightblue];
 
     User -> Core -> Internal -> Bootstrap -> VM
-    VM -> Platform
     Core -> Bin -> IO
     Core -> Bin -> Builtin
-    IO -> Platform
-    Builtin -> Platform
-    IO -> Impl
     Builtin -> Impl
+    IO -> Impl
+    Impl -> Platform
+    VM -> Platform
 
     group {
       label="dart/sdk"

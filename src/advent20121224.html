@@ -1,0 +1,342 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/24 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/23" href="advent20121223.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/24</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121223.html">Dart VM Advent Calendar 2012 12/23</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-24">
+<h1>Dart VM Advent Calendar 2012 12/24<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-24" title="Permalink to this headline">¶</a></h1>
+<p>Dart VMに関しては、今回が最終日です。</p>
+<div class="section" id="dart-vm">
+<h2>Dart VMのアーキテクチャ<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+<p>前日のDartのアーキテクチャから。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-3d94b91c9595d0340680be69d0ef7ce53867b100.png" alt="None" width="832" height="520" />
+</p>
+<p>Bootstrapから下をもうちょっと掘り下げてみようと思います。</p>
+</div>
+<div class="section" id="runtime-include">
+<h2>runtime/include<a class="headerlink" href="#runtime-include" title="Permalink to this headline">¶</a></h2>
+<p>実は、いままで触れてこなかったのですが、dart/runtime/includeというディレクトリ中に、</p>
+<p>dart_api.hというのが定義されており、これによりDart VM本体を制御することができます。</p>
+<p>dartはruntime/bin/main.ccがmain関数になるのですが、runtime/binからruntime/include/dart_api.hをincludeしています。</p>
+<p>Dart VM本体を制御するためのDart APIが、以下のDart APIになります。</p>
+<p>runtime/include/dart_api.hは、Dartのnative extension機能でも必須です。</p>
+<p>runtime/bin/main.cc</p>
+<div class="highlight-python"><pre>#include "include/dart_api.h"
+#include "include/dart_debugger_api.h"
+
+#include "bin/builtin.h"
+#include "bin/dartutils.h"
+#include "bin/dbg_connection.h"
+#include "bin/directory.h"
+#include "bin/eventhandler.h"
+#include "bin/extensions.h"
+#include "bin/file.h"
+#include "bin/isolate_data.h"
+#include "bin/log.h"
+#include "bin/platform.h"
+#include "bin/process.h"
+#include "platform/globals.h"
+
+int main(int argc, char** argv) {
+  ...
+  if (ParseArguments(argc,
+                     argv,
+                     &amp;vm_options,
+                     &amp;executable_name,
+                     &amp;script_name,
+                     &amp;dart_options,
+                     &amp;print_flags_seen) &lt; 0) {
+  }
+
+  // Initialize the Dart VM.
+  if (!Dart_Initialize(CreateIsolateAndSetup, NULL, NULL, ShutdownIsolate,
+                       OpenFile, WriteFile, CloseFile)) {
+    ...
+  }
+
+  // Call CreateIsolateAndSetup which creates an isolate and loads up
+  // the specified application script.
+  char* error = NULL;
+  char* isolate_name = BuildIsolateName(script_name, "main");
+  if (!CreateIsolateAndSetupHelper(script_name,
+                                   "main",
+                                   new IsolateData(),
+                                   &amp;error)) {
+  }
+
+  Dart_Isolate isolate = Dart_CurrentIsolate();
+  Dart_Handle result;
+
+  Dart_EnterScope();
+
+  // Lookup and invoke the top level main function.
+  result = Dart_Invoke(library, DartUtils::NewString("main"), 0, NULL);
+  // Keep handling messages until the last active receive port is closed.
+  result = Dart_RunLoop();
+
+  Dart_ExitScope();
+  // Shutdown the isolate.
+  Dart_ShutdownIsolate();
+  // Terminate process exit-code handler.
+  Process::TerminateExitCodeHandler();
+  return Process::GlobalExitCode();
+}</pre>
+</div>
+<p>Dart_xxxというのが、Dart APIになります。</p>
+<p>dartはmain処理で、scriptを読み込んで、Isolateを初期化したのち、Dart_Invoke()により実行を始めます。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-f739e0b04f63a86db0a5b3c0b1cf36a0934653bc.png" alt="None" width="832" height="360" />
+</p>
+</div>
+<div class="section" id="jit">
+<h2>JITコンパイラされるコード<a class="headerlink" href="#jit" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMがJITコンパイルするコードには2種類あって、</p>
+<p>1つ目は、Dartのソースコード。今まで説明してきたDartのソースコードをJITコンパイルしたものです。</p>
+<p>2つ目は、Stubコード。これはIsolateを初期化した際に、JITコンパイルしたコードが呼び出すStubを、
+事前にコード生成しておきます。</p>
+<p>JITコンパイルしたコードは、BootstrapNativesの処理か、Stub経由でDart VMが提供するRuntime処理を呼び出すことができます。</p>
+<p class="blockdiag">
+<img src="../images/blockdiag-b6da41c4f3aba48a3f8f1f1cf3ff307a5c1f8f67.png" alt="None" width="832" height="440" />
+</p>
+<p>stubは以下が定義されており、すべてgenerate処理がアーキテクチャごとに定義されています。</p>
+<p>また、VM起動時に1度だけgenerateされるものと、isolateごとにgenerateするものに分けられています。</p>
+<p>runtime/vm/stub_code.h</p>
+<div class="highlight-python"><pre>// List of stubs created in the VM isolate, these stubs are shared by different
+// isolates running in this dart process.
+#define VM_STUB_CODE_LIST(V)                                                   \
+  V(CallToRuntime)                                                             \
+  V(PrintStopMessage)                                                          \
+  V(CallNativeCFunction)                                                       \
+  V(AllocateArray)                                                             \
+  V(CallNoSuchMethodFunction)                                                  \
+  V(InstanceFunctionLookup)                                                    \
+  V(CallStaticFunction)                                                        \
+  V(CallClosureFunction)                                                       \
+  V(FixCallersTarget)                                                          \
+  V(Deoptimize)                                                                \
+  V(DeoptimizeLazy)                                                            \
+  V(BreakpointStatic)                                                          \
+  V(BreakpointReturn)                                                          \
+  V(Subtype1TestCache)                                                         \
+  V(Subtype2TestCache)                                                         \
+  V(Subtype3TestCache)                                                         \
+  V(GetStackPointer)                                                           \
+  V(JumpToExceptionHandler)                                                    \
+  V(JumpToErrorHandler)                                                        \
+  V(IdenticalWithNumberCheck)                                                  \
+
+// Is it permitted for the stubs above to refer to Object::null(), which is
+// allocated in the VM isolate and shared across all isolates.
+// However, in cases where a simple GC-safe placeholder is needed on the stack,
+// using Smi 0 instead of Object::null() is slightly more efficient, since a Smi
+// does not require relocation.
+
+// List of stubs created per isolate, these stubs could potentially contain
+// embedded objects and hence cannot be shared across isolates.
+#define STUB_CODE_LIST(V)                                                      \
+  V(InvokeDartCode)                                                            \
+  V(AllocateContext)                                                           \
+  V(UpdateStoreBuffer)                                                         \
+  V(OneArgCheckInlineCache)                                                    \
+  V(TwoArgsCheckInlineCache)                                                   \
+  V(ThreeArgsCheckInlineCache)                                                 \
+  V(OneArgOptimizedCheckInlineCache)                                           \
+  V(TwoArgsOptimizedCheckInlineCache)                                          \
+  V(ThreeArgsOptimizedCheckInlineCache)                                        \
+  V(ClosureCallInlineCache)                                                    \
+  V(MegamorphicCall)                                                           \
+  V(OptimizeFunction)                                                          \
+  V(BreakpointDynamic)                                                         \
+  V(EqualityWithNullArg)                                                       \</pre>
+</div>
+<p>Isolateごとに分割するStubをぱっとみると、</p>
+<p>InvokeやOptimizeFunctionがありますが、Dart srcとJITコンパイル済みCodeの管理がIsolateごとに分かれているためです。</p>
+<p>InlineCache用のStubが多いですが、これもJITコンパイルしたCodeに依存するためです。</p>
+<p>AllocateContextやUpdateStoreBufferは、HeapやGC向けの処理になります。これらもIsolateごとに分かれています。</p>
+</div>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMの構成要素として、ざっくり以下に分けられると考えています。</p>
+<p>各要素は相互に連携しています。</p>
+<ol class="arabic simple">
+<li>Dartの構造管理</li>
+<li>ObjectPool</li>
+<li>JITコンパイラ</li>
+<li>Runtimeサービス</li>
+<li>リソース管理</li>
+<li>外部連携インターフェース</li>
+</ol>
+<p class="blockdiag">
+<img src="../images/blockdiag-edee96fae7d1d7c1cd81e082a8b438fddb4d0cbe.png" alt="None" width="640" height="280" />
+</p>
+</div>
+<div class="section" id="dart">
+<h2>Dartの構造管理<a class="headerlink" href="#dart" title="Permalink to this headline">¶</a></h2>
+<p>Dart のオブジェクト間の構造管理に関してはまったく触れてきませんでした。</p>
+<p>Isolate -&gt; Class or Function -&gt; ContextScopeなどから定義されています。</p>
+<p>他にも、Closure、LocalScopeなどがあり、function_level, loop_level, context_levelなどに応じて、
+ネストして定義されます。</p>
+<p>それぞれのScopeから、以下のObjectPoolにひもづけられます。</p>
+</div>
+<div class="section" id="objectpool">
+<h2>ObjectPool<a class="headerlink" href="#objectpool" title="Permalink to this headline">¶</a></h2>
+<p>あまりObjectPoolという呼び方はしていませんが、18日目に紹介した、ObjectとRawObject群のことです。</p>
+<ul class="simple">
+<li><a class="reference internal" href="advent20121218.html"><em>Dart VM Advent Calendar 2012 12/18</em></a></li>
+</ul>
+<p>Objectクラス系が、主に操作を担当して、RawObjectが実データを定義します。</p>
+<p>そのため、GCの対象はすべてRawObjectになります。</p>
+<p>Objectクラスのメソッドは、BootstrapNativesによって外部に公開されます。</p>
+</div>
+<div class="section" id="id2">
+<h2>JITコンパイラ<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMのJITコンパイラは、以下のパーツに分解されます。</p>
+<ol class="arabic simple">
+<li>parser(DartのソースコードをparseしてASTに変換する処理)</li>
+<li>AST(各種ASTNodeの定義)</li>
+<li>IRBuilder(ASTからIRに変換する処理)</li>
+<li>IR(各種IRの定義)</li>
+<li>Optimizer(IRを最適化する処理)</li>
+<li>Compiler(IRからアセンブラに変換する処理)</li>
+<li>Assembler(アセンブラからObjectCodeに変換する処理)</li>
+</ol>
+<ul class="simple">
+<li><a class="reference internal" href="advent20121212.html"><em>Dart VM Advent Calendar 2012 12/12</em></a> JITコンパイルの概要</li>
+<li><a class="reference internal" href="advent20121214.html"><em>Dart VM Advent Calendar 2012 12/14</em></a> IR</li>
+<li><a class="reference internal" href="advent20121219.html"><em>Dart VM Advent Calendar 2012 12/19</em></a> Optimizer(DominatorBasedCSE)</li>
+<li><a class="reference internal" href="advent20121220.html"><em>Dart VM Advent Calendar 2012 12/20</em></a> Optimizer(LICM)</li>
+</ul>
+</div>
+<div class="section" id="runtime">
+<h2>Runtimeサービス<a class="headerlink" href="#runtime" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMは、JITコンパイルされたコードから呼ばれるRuntimeサービスを定義しています。</p>
+<ol class="arabic simple">
+<li>JITコンパイル</li>
+<li>リソース管理(Allocate/StoreBuffer更新)</li>
+<li>Call/InlineCaching</li>
+<li>Deoptimization</li>
+</ol>
+<ul class="simple">
+<li><a class="reference internal" href="advent20121211.html"><em>Dart VM Advent Calendar 2012 12/11</em></a> JITコンパイル</li>
+<li><a class="reference internal" href="advent20121215.html"><em>Dart VM Advent Calendar 2012 12/15</em></a> StoreBuffer</li>
+</ul>
+</div>
+<div class="section" id="id3">
+<h2>リソース管理<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMのリソース管理は、ざっくりいって以下の3種類です。</p>
+<ol class="arabic simple">
+<li>Heap</li>
+<li>Handle(RAII)</li>
+<li>GC</li>
+</ol>
+<ul class="simple">
+<li><a class="reference internal" href="advent20121210.html"><em>Garbage Collection Advent Calendar 2012 12/10</em></a> HeapとGCの概要に関して</li>
+<li><a class="reference internal" href="advent20121217.html"><em>Garbage Collection Advent Calendar 2012 12/17</em></a> GCのScavenger</li>
+</ul>
+</div>
+<div class="section" id="id4">
+<h2>外部連携インターフェース<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMの外部連携インターフェースを定義しています。</p>
+<ol class="arabic simple">
+<li>BootstrapNatives</li>
+<li>DartAPI</li>
+<li>NativeEntry</li>
+<li>Stubs</li>
+<li>CodeObserver</li>
+<li>Debugger</li>
+</ol>
+<ul class="simple">
+<li><a class="reference internal" href="advent20121209.html"><em>Dart VM Advent Calendar 2012 12/09</em></a> CodeObserver(perf連携)</li>
+<li><a class="reference internal" href="advent20121216.html"><em>Dart VM Advent Calendar 2012 12/16</em></a> NativeEntry</li>
+<li><a class="reference internal" href="advent20121223.html"><em>Dart VM Advent Calendar 2012 12/23</em></a> BootstrapNatives</li>
+<li><a class="reference internal" href=""><em>Dart VM Advent Calendar 2012 12/24</em></a> Stub</li>
+</ul>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121223.html">Dart VM Advent Calendar 2012 12/23</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
