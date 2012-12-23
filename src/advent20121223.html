@@ -80,11 +80,13 @@ runtime/libおよびruntime/binのbuiltin系をコンパイルします。</li>
 <li>VM本体のビルドとtest。
 上記のC++のオブジェクトを組み合わせてVM本体をビルドし、テストを走らせます。</li>
 <li>SDKやCoreのソースコードのsnapshot。
-SDKとCoreのソースコードを、VM本体のsnapshotを使って、parseしてASTに変換したのちserializeします。</li>
+SDKとCoreのソースコードを、VM本体のgen_snapshotを使って、parseしてASTに変換したのちserializeします。</li>
 <li>Dart VM本体と、main.ccと、serializeしたバイナリを組み合わせて、dart を作成する。</li>
 </ol>
 <p>上記アーキテクチャの下の方から順にコンパイルしていきます。</p>
 <p>VM本体を生成してからSDKとinternalのdart ソースコードをsnapshotし、すべてを内包したdartコマンドを生成します。</p>
+<p>そのため、dart本体は起動時にASTをdeserializeするだけであり、起動時のfile ioとparse処理が不要になり高速に起動できます。</p>
+<p>またgen_snapshotコマンドにより、ユーザプログラムもシリアライズして組み込んでおき、ユーザプログラムの高速な起動も可能なはずですが、試せていないです。</p>
 </div>
 <div class="section" id="bootstrapnatives">
 <h2>BootstrapNatives<a class="headerlink" href="#bootstrapnatives" title="Permalink to this headline">¶</a></h2>
@@ -324,35 +326,37 @@ class BootstrapNatives : public AllStatic {
 #endif  // VM_BOOTSTRAP_NATIVES_H_
 </pre>
 </div>
-<p>Dartの必要最低限の基本的なデータは構造は、すべてDart VMで定義されており、
+<p>Dartの基本的なデータは構造は、すべてDart VMで定義されており、
 すべてbootstrap_nativesを介してbindingされます。</p>
 <p>上記にないものは、bootstrap_nativesを組み合わせて作成するオブジェクトのはずです。</p>
+<p>bootstrap_natives以外にも、builtin_nativesやio_nativesがruntme/binに定義されており、
+それらはOSの基本機能(IO File Socket Thread Crypt Processなど)を操作するC++オブジェクトにbindingします。</p>
 </div>
 <div class="section" id="string">
 <h2>Stringの階層構造<a class="headerlink" href="#string" title="Permalink to this headline">¶</a></h2>
-<p>Stringをサンプルにすると、以下のようになります。</p>
+<p>Stringをサンプルに階層構造をみると、以下のようになります。</p>
 <p class="blockdiag">
 <img src="../images/blockdiag-45819748fa3e6198bef2720758f8242368ff75bb.png" alt="None" width="640" height="520" />
 </p>
 <p>基本的なCore APIは、すべて上記のように綺麗な階層に分かれるはずです。</p>
 </div>
-<div class="section" id="id1">
-<h2>Dart VMの連携方法<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
-<p>JITコンパイルするとどうなるのでしょうか。</p>
+<div class="section" id="jit">
+<h2>JITコンパイルされたコードとの連携<a class="headerlink" href="#jit" title="Permalink to this headline">¶</a></h2>
+<p>JITコンパイルされたコードは、どのような階層になるのでしょうか。</p>
 <p class="blockdiag">
-<img src="../images/blockdiag-8791c7ef188d68af61948a683967829350625be4.png" alt="None" width="832" height="520" />
+<img src="../images/blockdiag-29240d35470d4560d598860ceba24ddbd5a2011a.png" alt="None" width="832" height="520" />
 </p>
-<p>Dartのソースコードは、Dart APIからソースコードをloadscriptされ、JITコンパイルされます。</p>
-<p>JITコンパイルされたコードには、StubsやBootstrapへの呼び出しを埋め込んだ形コードを出力します。</p>
-<p>Dart VMは、VMと連携するための命令を予め埋め込む形でJITコンパイルしたコードを生成します。</p>
-<p>JITコンパイルされたコードは、VMと連携用の命令を呼び出すことによって、VM側と連携します。</p>
+<p>Dartのソースコードは、Dart VMを操作するDart APIを使用し、ソースコードをloadscriptしてJITコンパイルします。</p>
+<p>JITコンパイルされたコードには、StubsやBootstrapへの呼び出しを埋め込んコードを生成します。</p>
+<p>JITコンパイルされたコードは、Stubs経由でVM連携用の処理を呼び出したり、Nativeに用意されたメソッドを呼び出します。</p>
 </div>
-<div class="section" id="id2">
-<h2>まとめ<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<div class="section" id="id1">
+<h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
 <ol class="arabic simple">
 <li>Dart Binding C++の3階層に分かれる。</li>
 <li>Coreのオブジェクトは、Dart VM内のC++オブジェクトとbindingする。</li>
 <li>JITコンパイルされたコードは、BootstrapされたNativeシンボルおよびStubsを経由してVMと連携する。</li>
+<li>次はDart VMのアーキテクチャを、、</li>
 </ol>
 </div>
 </div>
