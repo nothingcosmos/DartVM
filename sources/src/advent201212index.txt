@@ -24,6 +24,7 @@ Dart VM index
   advent20121219
   advent20121220
   advent20121221
+  advent20121223
   advent201212todo
 
 努力目標
@@ -50,6 +51,7 @@ Dart VM index
 - intrinsics string
 - FlowGraphCompiler gvn & cse
 - FlowGraphCompiler licm
+- core api layer(String)
 
 候補
 

@@ -29,7 +29,7 @@
     <script type="text/javascript" src="../_static/theme_extras.js"></script>
     <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
     <link rel="up" title="Dart VM index" href="advent201212index.html" />
-    <link rel="next" title="Dart VM Advent Calendar todo" href="advent201212todo.html" />
+    <link rel="next" title="Dart VM Advent Calendar 2012 12/23" href="advent20121223.html" />
     <link rel="prev" title="Dart VM Advent Calendar 2012 12/20" href="advent20121220.html" /> 
   </head>
   <body>
@@ -44,7 +44,7 @@
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        <a href="advent20121223.html">Dart VM Advent Calendar 2012 12/23</a>&#160;&#160;»
         </p>
 
       </div>
@@ -119,21 +119,17 @@
 <p>concatString()はinline展開されて、上記のようなIRになっています。</p>
 <p>具体的には、以下のdartのソースコードまでがinline展開されています。</p>
 <div class="highlight-python"><pre>bench/stringconcat.dart::stringconcat()
-  -&gt; sdk/lib/String.dart::String.concat() &lt;-- ここまで
-    /* inline展開の壁 */
-    -&gt; runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"</pre>
+  -&gt; sdk/lib/String.dart::String.concat()                                        &lt;-- ここまでinline展開
+    /*** inline展開の壁 ***/
+    -&gt; runtime/lib/string_base.dart::_StringBase.concat() native "String_concat" &lt;-- polymorphicInstanceCall
+      /*** dartとC++のソースコードの壁 ***/
+      -&gt; runtime/lib/string.cc::DEFINE_NATIVE_ENTRY(String_concat)
+        -&gt; dart::String::Concat()
+          -&gt; dart::OneByteString::Concat()
+            -&gt; dart::String::Copy()
+            -&gt; dart::OneByteString::raw()</pre>
 </div>
-<p>concatがPolymorphicInstanceCallになっています。 おそらく、concatに対応するIRが存在しないためでしょう。</p>
-<p>call</p>
-<div class="highlight-python"><pre>-&gt; runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"
-/* dartとC++のソースコードの壁 */
-  -&gt; runtime/lib/string.cc::DEFINE_NATIVE_ENTRY(String_concat)
-    -&gt; dart::String::Concat()
-      -&gt; dart::OneByteString::Concat()
-        -&gt; dart::String::Copy()
-        -&gt; dart::OneByteString::raw()</pre>
-</div>
-<p>code</p>
+<p>PolymorphicInstanceCallのアセンブラ出力</p>
 <div class="highlight-python"><pre>        ;; CheckClass:13(v5 IC[1: _OneByteString@0x36924d72 #600])
 0xb2fc91a9    a801                   test al,0x1              // HeapTag check
 0xb2fc91ab    0f8470000000           jz 0xb2fc9221            // goto deoptimization
@@ -147,8 +143,14 @@
 </div>
 <p>PolymorphicInstanceCallですが、1種類しか呼び出さないため、速そうです。</p>
 <p>CallStaticFunctionで、concatを呼び出すだけですね。</p>
-<p>CallStaticFunctionから呼び出すconcatは何なのでしょうか。</p>
-<p>それは、runtime/lib/string_base.dart _StringBase.concat()です。</p>
+<p>CallStaticFunctionから呼び出すconcatは、runtime/lib/string_base.dart _StringBase.concat()です。</p>
+<p>runtime/lib/string_base.dart</p>
+<div class="highlight-python"><pre>class _OneByteString extends _StringBase implements String {  //TypeFeedback上は_OneByteStringです。
+  factory _OneByteString._uninstantiable() {                  //
+    throw new UnsupportedError(
+      "_OneByteString can only be allocated by the VM");
+  }</pre>
+</div>
 <p>concatは、dartのString_base.concat から、 native &#8220;String_concat&#8221; を呼び出します。</p>
 <p>最終的には、Dart VM内のdart::String.Concat()関数を呼び出します。</p>
 <div class="highlight-python"><pre>RawOneByteString* OneByteString::Concat(const String&amp; str1,
@@ -163,7 +165,7 @@
   return OneByteString::raw(result);
 }</pre>
 </div>
-<p>JITコンパイルされたdartのコードから、最終的に上記のConcatが呼ばれます。</p>
+<p>JITコンパイルされたdartのコードから、最終的に上記のC++のConcatが呼ばれます。</p>
 <p>dartのlib用に公開している、nativeなシンボルを経由する場合、オーバーヘッドはどのくらいなのでしょうか。</p>
 <p>上記オーバーヘッドを削除して、更なる高速化を目指す場合、二つの方法があります。</p>
 <p>1つ目は、Concatに対応するIRを追加し、Emit時に上記の処理をアセンブラで出力する。</p>
@@ -193,7 +195,7 @@
         &#160;&#160;::&#160;&#160;
         <a class="uplink" href="../index.html">Contents</a>
         &#160;&#160;::&#160;&#160;
-        <a href="advent201212todo.html">Dart VM Advent Calendar todo</a>&#160;&#160;»
+        <a href="advent20121223.html">Dart VM Advent Calendar 2012 12/23</a>&#160;&#160;»
         </p>
 
       </div>

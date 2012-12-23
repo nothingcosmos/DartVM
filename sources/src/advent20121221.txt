@@ -75,16 +75,10 @@ concatString()はinline展開されて、上記のようなIRになっていま�
 具体的には、以下のdartのソースコードまでがinline展開されています。 ::
 
   bench/stringconcat.dart::stringconcat()
-    -> sdk/lib/String.dart::String.concat() <-- ここまで
-      /* inline展開の壁 */
-      -> runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"
-
-concatがPolymorphicInstanceCallになっています。 おそらく、concatに対応するIRが存在しないためでしょう。
-
-call ::
-
-      -> runtime/lib/string_base.dart::_StringBase.concat() native "String_concat"
-      /* dartとC++のソースコードの壁 */
+    -> sdk/lib/String.dart::String.concat()                                        <-- ここまでinline展開
+      /*** inline展開の壁 ***/
+      -> runtime/lib/string_base.dart::_StringBase.concat() native "String_concat" <-- polymorphicInstanceCall
+        /*** dartとC++のソースコードの壁 ***/
         -> runtime/lib/string.cc::DEFINE_NATIVE_ENTRY(String_concat)
           -> dart::String::Concat()
             -> dart::OneByteString::Concat()
@@ -92,7 +86,7 @@ call ::
               -> dart::OneByteString::raw()
 
 
-code ::
+PolymorphicInstanceCallのアセンブラ出力 ::
 
           ;; CheckClass:13(v5 IC[1: _OneByteString@0x36924d72 #600])
   0xb2fc91a9    a801                   test al,0x1              // HeapTag check
@@ -109,9 +103,15 @@ PolymorphicInstanceCallですが、1種類しか呼び出さないため、速�
 
 CallStaticFunctionで、concatを呼び出すだけですね。
 
-CallStaticFunctionから呼び出すconcatは何なのでしょうか。
+CallStaticFunctionから呼び出すconcatは、runtime/lib/string_base.dart _StringBase.concat()です。
 
-それは、runtime/lib/string_base.dart _StringBase.concat()です。
+runtime/lib/string_base.dart ::
+
+  class _OneByteString extends _StringBase implements String {  //TypeFeedback上は_OneByteStringです。
+    factory _OneByteString._uninstantiable() {                  //
+      throw new UnsupportedError(
+        "_OneByteString can only be allocated by the VM");
+    }
 
 concatは、dartのString_base.concat から、 native "String_concat" を呼び出します。
 
@@ -129,7 +129,7 @@ concatは、dartのString_base.concat から、 native "String_concat" を呼び
     return OneByteString::raw(result);
   }
 
-JITコンパイルされたdartのコードから、最終的に上記のConcatが呼ばれます。
+JITコンパイルされたdartのコードから、最終的に上記のC++のConcatが呼ばれます。
 
 dartのlib用に公開している、nativeなシンボルを経由する場合、オーバーヘッドはどのくらいなのでしょうか。
 
