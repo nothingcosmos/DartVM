@@ -96,28 +96,34 @@ Dart VMのビルドは複数のフェーズから構成されています。
 4. VM本体のビルドとtest。
    上記のC++のオブジェクトを組み合わせてVM本体をビルドし、テストを走らせます。
 5. SDKやCoreのソースコードのsnapshot。
-   SDKとCoreのソースコードを、VM本体のsnapshotを使って、parseしてASTに変換したのちserializeします。
+   SDKとCoreのソースコードを、VM本体のgen_snapshotを使って、parseしてASTに変換したのちserializeします。
 6. Dart VM本体と、main.ccと、serializeしたバイナリを組み合わせて、dart を作成する。
 
 上記アーキテクチャの下の方から順にコンパイルしていきます。
 
 VM本体を生成してからSDKとinternalのdart ソースコードをsnapshotし、すべてを内包したdartコマンドを生成します。
 
+そのため、dart本体は起動時にASTをdeserializeするだけであり、起動時のfile ioとparse処理が不要になり高速に起動できます。
+
+またgen_snapshotコマンドにより、ユーザプログラムもシリアライズして組み込んでおき、ユーザプログラムの高速な起動も可能なはずですが、試せていないです。
 
 BootstrapNatives
 ===============================================================================
 
 .. literalinclude:: out/bootstrap_natives.h
 
-Dartの必要最低限の基本的なデータは構造は、すべてDart VMで定義されており、
+Dartの基本的なデータは構造は、すべてDart VMで定義されており、
 すべてbootstrap_nativesを介してbindingされます。
 
 上記にないものは、bootstrap_nativesを組み合わせて作成するオブジェクトのはずです。
 
+bootstrap_natives以外にも、builtin_nativesやio_nativesがruntme/binに定義されており、
+それらはOSの基本機能(IO File Socket Thread Crypt Processなど)を操作するC++オブジェクトにbindingします。
+
 Stringの階層構造
 ===============================================================================
 
-Stringをサンプルにすると、以下のようになります。
+Stringをサンプルに階層構造をみると、以下のようになります。
 
 .. blockdiag::
 
@@ -186,10 +192,10 @@ Stringをサンプルにすると、以下のようになります。
 基本的なCore APIは、すべて上記のように綺麗な階層に分かれるはずです。
 
 
-Dart VMの連携方法
+JITコンパイルされたコードとの連携
 ===============================================================================
 
-JITコンパイルするとどうなるのでしょうか。
+JITコンパイルされたコードは、どのような階層になるのでしょうか。
 
 .. blockdiag::
 
@@ -206,7 +212,8 @@ JITコンパイルするとどうなるのでしょうか。
     L1 -- L2 -- L3 -- L4 -- L5 -- L6
 
     L1Src [label="ユーザプログラム" color=lightpink];
-    L2Core [label="Core APIのソースコード" color=lightpink];
+    L2Core [label="Core APIのInterface" color=lightpink];
+    L3Core [label="Core APIのImpl" color=lightpink];
     L7Code2 [label="JITCompiledCode" color=lightgray];
     L5JIT [label="Dart VM JIT Compiler" color=lightblue];
     L4Api [label="Dart API" color=lightgreen];
@@ -216,39 +223,44 @@ JITコンパイルするとどうなるのでしょうか。
     L5Runtime [label="RuntimeEntry" color=lightblue];
     L7Code [label="JITCompiledCode" color=lightgray];
 
-    L1Src -> L2Core -> L4Api -> L5JIT -> L7Code
+    L1Src -> L2Core -> L3Core -> L4Api -> L5JIT -> L7Code
     L1Src -> L7Code2[style = dashed];
     L7Code2 -> L4Bootstrap -> L5Object
     L7Code2 -> L4Stubs -> L5Runtime
     L5Runtime -> L5Object [folded]
 
     group {
+      color=white
+      L2Core;
+      L7Code2;
+    }
+
+    group {
       label="runtime/vm Dart VMの処理"
       L5JIT;
-      L5Object;
       L5Runtime;
+      L5Object;
     }
 
     group {
       label="runtime/vm Bootstrap & Stubs"
       L4Api;
-      L4Bootstrap;
       L4Stubs;
+      L4Bootstrap;
     }
   }
 
-Dartのソースコードは、Dart APIからソースコードをloadscriptされ、JITコンパイルされます。
+Dartのソースコードは、Dart VMを操作するDart APIを使用し、ソースコードをloadscriptしてJITコンパイルします。
 
-JITコンパイルされたコードには、StubsやBootstrapへの呼び出しを埋め込んだ形コードを出力します。
+JITコンパイルされたコードには、StubsやBootstrapへの呼び出しを埋め込んコードを生成します。
 
-Dart VMは、VMと連携するための命令を予め埋め込む形でJITコンパイルしたコードを生成します。
-
-JITコンパイルされたコードは、VMと連携用の命令を呼び出すことによって、VM側と連携します。
+JITコンパイルされたコードは、Stubs経由でVM連携用の処理を呼び出したり、Nativeに用意されたメソッドを呼び出します。
 
 まとめ
 ===============================================================================
 (1) Dart Binding C++の3階層に分かれる。
 (2) Coreのオブジェクトは、Dart VM内のC++オブジェクトとbindingする。
 (3) JITコンパイルされたコードは、BootstrapされたNativeシンボルおよびStubsを経由してVMと連携する。
+(4) 次はDart VMのアーキテクチャを、、
 
 

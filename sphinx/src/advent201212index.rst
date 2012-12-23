@@ -52,11 +52,12 @@ Dart VM index
 - FlowGraphCompiler gvn & cse
 - FlowGraphCompiler licm
 - core api layer(String)
+- Dart Architecture
+- Dart VM Architecture
 
 候補
 
 - Dart VM src overview
-- Dart VM Architecture
 - Runtime1 isolate
 - Runtime2 memory layout
 - Runtime3 hotcode & unoptimized path
