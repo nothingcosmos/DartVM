@@ -53,12 +53,12 @@
         
   <div class="section" id="dart-vm-advent-calendar-2012-12-24">
 <h1>Dart VM Advent Calendar 2012 12/24<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-24" title="Permalink to this headline">¶</a></h1>
-<p>Dart VMに関しては、今回が最終日です。</p>
+<p>Dart VMに関して、今回が最終日です。</p>
 <div class="section" id="dart-vm">
 <h2>Dart VMのアーキテクチャ<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
 <p>前日のDartのアーキテクチャから。</p>
 <p class="blockdiag">
-<img src="../images/blockdiag-3d94b91c9595d0340680be69d0ef7ce53867b100.png" alt="None" width="832" height="520" />
+<img src="../images/blockdiag-1ab857b149861f86544c7ba72dbd36b7bf4067fa.png" alt="None" width="832" height="520" />
 </p>
 <p>Bootstrapから下をもうちょっと掘り下げてみようと思います。</p>
 </div>
@@ -134,8 +134,11 @@ int main(int argc, char** argv) {
 <p>Dart_xxxというのが、Dart APIになります。</p>
 <p>dartはmain処理で、scriptを読み込んで、Isolateを初期化したのち、Dart_Invoke()により実行を始めます。</p>
 <p class="blockdiag">
-<img src="../images/blockdiag-f739e0b04f63a86db0a5b3c0b1cf36a0934653bc.png" alt="None" width="832" height="360" />
+<img src="../images/blockdiag-caa556ead60ffb8f6cacd778c76e425177623c65.png" alt="None" width="832" height="360" />
 </p>
+<p>前の図と違う点は、Dart API経由でJITコンパイルされている点です。JITコンパイルされたコードは、左上です。</p>
+<p>JITコンパイルされたコードがDart VMと連携したり、次の呼び出し先をcallする際には、
+StubsかBootstrapNativesのメソッドを呼び出します。</p>
 </div>
 <div class="section" id="jit">
 <h2>JITコンパイラされるコード<a class="headerlink" href="#jit" title="Permalink to this headline">¶</a></h2>
@@ -144,6 +147,14 @@ int main(int argc, char** argv) {
 <p>2つ目は、Stubコード。これはIsolateを初期化した際に、JITコンパイルしたコードが呼び出すStubを、
 事前にコード生成しておきます。</p>
 <p>JITコンパイルしたコードは、BootstrapNativesの処理か、Stub経由でDart VMが提供するRuntime処理を呼び出すことができます。</p>
+<p>今までStubと一括りにしていた処理は、generateされたStubと、Stub経由で呼ばれるRuntimeEntryに分かれます。</p>
+<p>Stubが存在する理由は、JITコンパイルしたコードから直接Runtimeを呼び出すのではなく、
+以下の処理を生成コード側で行うための間接的な構造にしているためです。</p>
+<ol class="arabic simple">
+<li>処理の共通化。JITコンパイルされたユーザプログラムのアセンブラがシンプルになり、サイズが減る。</li>
+<li>Runtime処理ごとに異なる、CallingConvの差異の吸収。Stubを呼び出す際のCallingConvは共通ですが、呼び出すRuntimeごとに異なります。</li>
+<li>Isolate共通のRuntime処理と、各Isolate固有のRuntime処理を呼び分けたい。共通化してテーブル引きしたくない。</li>
+</ol>
 <p class="blockdiag">
 <img src="../images/blockdiag-b6da41c4f3aba48a3f8f1f1cf3ff307a5c1f8f67.png" alt="None" width="832" height="440" />
 </p>
@@ -199,13 +210,15 @@ int main(int argc, char** argv) {
   V(EqualityWithNullArg)                                                       \</pre>
 </div>
 <p>Isolateごとに分割するStubをぱっとみると、</p>
-<p>InvokeやOptimizeFunctionがありますが、Dart srcとJITコンパイル済みCodeの管理がIsolateごとに分かれているためです。</p>
-<p>InlineCache用のStubが多いですが、これもJITコンパイルしたCodeに依存するためです。</p>
-<p>AllocateContextやUpdateStoreBufferは、HeapやGC向けの処理になります。これらもIsolateごとに分かれています。</p>
+<ol class="arabic simple">
+<li>InvokeとOptimizeFunction。Dart srcとJITコンパイル済みCodeの管理がIsolateごとに分かれているためです。</li>
+<li>InlineCache系。これもJITコンパイルしたCodeに依存するためです。</li>
+<li>リソース管理系、AllocateContextやUpdateStoreBufferは、HeapやGC向けの処理になります。これらもIsolateごとに分かれています。</li>
+</ol>
 </div>
 <div class="section" id="id1">
 <h2>まとめ<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
-<p>Dart VMの構成要素として、ざっくり以下に分けられると考えています。</p>
+<p>Dart VMの構成要素は、以下に分けられると考えています。</p>
 <p>各要素は相互に連携しています。</p>
 <ol class="arabic simple">
 <li>Dartの構造管理</li>
@@ -222,10 +235,11 @@ int main(int argc, char** argv) {
 <div class="section" id="dart">
 <h2>Dartの構造管理<a class="headerlink" href="#dart" title="Permalink to this headline">¶</a></h2>
 <p>Dart のオブジェクト間の構造管理に関してはまったく触れてきませんでした。</p>
-<p>Isolate -&gt; Class or Function -&gt; ContextScopeなどから定義されています。</p>
+<p>DartはIsolateというTopLevelのContextが存在し、
+Isolateごとにソースコードの管理、JITコンパイルされたコードの管理、Heapの管理、GCの管理を行います。</p>
+<p>Isolateの配下には、Class or Function -&gt; ContextScopeなどを定義しています。</p>
 <p>他にも、Closure、LocalScopeなどがあり、function_level, loop_level, context_levelなどに応じて、
-ネストして定義されます。</p>
-<p>それぞれのScopeから、以下のObjectPoolにひもづけられます。</p>
+ネストして定義しています。</p>
 </div>
 <div class="section" id="objectpool">
 <h2>ObjectPool<a class="headerlink" href="#objectpool" title="Permalink to this headline">¶</a></h2>
@@ -233,15 +247,18 @@ int main(int argc, char** argv) {
 <ul class="simple">
 <li><a class="reference internal" href="advent20121218.html"><em>Dart VM Advent Calendar 2012 12/18</em></a></li>
 </ul>
-<p>Objectクラス系が、主に操作を担当して、RawObjectが実データを定義します。</p>
-<p>そのため、GCの対象はすべてRawObjectになります。</p>
-<p>Objectクラスのメソッドは、BootstrapNativesによって外部に公開されます。</p>
+<p>ObjectとRawObjectを継承したクラスは多数存在します。</p>
+<p>Objectクラス系が、主に操作を定義しています。
+そのため、ObjectクラスのメソッドはBootstrapNativesによって外部に公開されます。</p>
+<p>Objectクラスは、必ず対応するRawObjectの参照Raw()をフィールドに持ちます。</p>
+<p>RawObjectは実データを定義するクラスです。
+そのため、GCの対象はすべてRawObjectになります。</p>
 </div>
 <div class="section" id="id2">
 <h2>JITコンパイラ<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
 <p>Dart VMのJITコンパイラは、以下のパーツに分解されます。</p>
 <ol class="arabic simple">
-<li>parser(DartのソースコードをparseしてASTに変換する処理)</li>
+<li>Parser(DartのソースコードをASTに変換する処理)</li>
 <li>AST(各種ASTNodeの定義)</li>
 <li>IRBuilder(ASTからIRに変換する処理)</li>
 <li>IR(各種IRの定義)</li>
@@ -249,6 +266,8 @@ int main(int argc, char** argv) {
 <li>Compiler(IRからアセンブラに変換する処理)</li>
 <li>Assembler(アセンブラからObjectCodeに変換する処理)</li>
 </ol>
+<p>非最適化JITコンパイルの場合、Optimizerの処理をskipします。</p>
+<p>Dart VMは、Dartのソースコード、AST、ObjectCode(非最適化、最適化の2つ)を管理対象とします。</p>
 <ul class="simple">
 <li><a class="reference internal" href="advent20121212.html"><em>Dart VM Advent Calendar 2012 12/12</em></a> JITコンパイルの概要</li>
 <li><a class="reference internal" href="advent20121214.html"><em>Dart VM Advent Calendar 2012 12/14</em></a> IR</li>
@@ -262,9 +281,21 @@ int main(int argc, char** argv) {
 <ol class="arabic simple">
 <li>JITコンパイル</li>
 <li>リソース管理(Allocate/StoreBuffer更新)</li>
-<li>Call/InlineCaching</li>
+<li>Call</li>
+<li>InlineCaching &amp; TypeFeedback</li>
 <li>Deoptimization</li>
 </ol>
+<p>Allocateは、newした場合の空きメモリの確保です。
+StoreBuffer更新は、Old領域からNew領域への参照を更新し、世代別GCで処理します。</p>
+<p>Callは、メソッド呼び出しの解決です。Dart VMの場合、呼び出し先のアドレスを直接Callするのではなく、
+CallSiteごとにTableを引くことが多いです。</p>
+<p>InlineCachingは、非最適化コンパイル時の動的なメソッド呼び出し処理です。
+非最適化時の場合、呼び出し候補は多数存在するため、
+InlineCachingというテクニックを使用して呼び出し候補を高速に探し、解決します。</p>
+<p>TypeFeedbackは、InlineCacheの際に解決したメソッド呼び出し先を記録する処理です。</p>
+<p>CallSiteごとのメソッド呼び出し先情報を最適化JITコンパイル時に渡します。</p>
+<p>Deoptimizationは、最適化JITコンパイルされたコードの実行途中から、非最適化JITコンパイルされたコードに戻す処理です。</p>
+<p>Deoptimizationがあるため、最適化JITコンパイル時に、投機的に型を決めたり、投機的にinline展開を行うことができます。</p>
 <ul class="simple">
 <li><a class="reference internal" href="advent20121211.html"><em>Dart VM Advent Calendar 2012 12/11</em></a> JITコンパイル</li>
 <li><a class="reference internal" href="advent20121215.html"><em>Dart VM Advent Calendar 2012 12/15</em></a> StoreBuffer</li>
@@ -272,12 +303,18 @@ int main(int argc, char** argv) {
 </div>
 <div class="section" id="id3">
 <h2>リソース管理<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
-<p>Dart VMのリソース管理は、ざっくりいって以下の3種類です。</p>
+<p>Dart VMのリソース管理は、ざっくり以下です。</p>
 <ol class="arabic simple">
 <li>Heap</li>
 <li>Handle(RAII)</li>
 <li>GC</li>
+<li>Zone</li>
 </ol>
+<p>DartのObjectPoolはすべてHeapで管理します。HeapはNew領域とOld領域にわけ、世代別GCによって回収します。</p>
+<p>Allocateしたメモリを管理するHandle(RAII)を多数提供しています。Handleの参照は、GCにも関係します。</p>
+<p>Zoneは、Heap以外に確保する一時的なメモリ確保、管理です。
+ObjectPool以外に使うことが多く、処理が終了したら一斉に解法します。</p>
+<p>ScopeにHandleされたスタックのようなものかもしれません。</p>
 <ul class="simple">
 <li><a class="reference internal" href="advent20121210.html"><em>Garbage Collection Advent Calendar 2012 12/10</em></a> HeapとGCの概要に関して</li>
 <li><a class="reference internal" href="advent20121217.html"><em>Garbage Collection Advent Calendar 2012 12/17</em></a> GCのScavenger</li>
@@ -287,13 +324,19 @@ int main(int argc, char** argv) {
 <h2>外部連携インターフェース<a class="headerlink" href="#id4" title="Permalink to this headline">¶</a></h2>
 <p>Dart VMの外部連携インターフェースを定義しています。</p>
 <ol class="arabic simple">
-<li>BootstrapNatives</li>
 <li>DartAPI</li>
-<li>NativeEntry</li>
+<li>BootstrapNatives</li>
 <li>Stubs</li>
+<li>NativeEntry</li>
 <li>CodeObserver</li>
 <li>Debugger</li>
 </ol>
+<p>DartAPIは、runtime/includeに定義されたDart VMを制御するためのAPIです。</p>
+<p>BootstrapNativesは、主にDartのCore APIがnative extensionで呼び出すシンボルです。</p>
+<p>Stubsは、JITコンパイルしたコード用に用意された補助です。</p>
+<p>NativeEntryは、上記BootstrapNativesとStub経由で呼ばれるシンボルと処理を定義します。</p>
+<p>CodeObserverとDebuggerは、Dart VMと連携する外部プログラム用に用意した処理になります。</p>
+<p>プロセスレベルで連携したり、何らかのファイルを経由して連携します。</p>
 <ul class="simple">
 <li><a class="reference internal" href="advent20121209.html"><em>Dart VM Advent Calendar 2012 12/09</em></a> CodeObserver(perf連携)</li>
 <li><a class="reference internal" href="advent20121216.html"><em>Dart VM Advent Calendar 2012 12/16</em></a> NativeEntry</li>

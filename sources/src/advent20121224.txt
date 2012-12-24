@@ -1,7 +1,7 @@
 Dart VM Advent Calendar 2012 12/24
 ###############################################################################
 
-Dart VMに関しては、今回が最終日です。
+Dart VMに関して、今回が最終日です。
 
 Dart VMのアーキテクチャ
 ===============================================================================
@@ -31,7 +31,7 @@ Dart VMのアーキテクチャ
     L4Bootstrap [label="BootstrapNatives" color=lightgreen];
     L4Stubs [label="Stubs" color=lightgreen];
     L5Object [label="dart::Object" color=lightblue];
-    L5Runtime [label="RuntimeEntry" color=lightblue];
+    L5Runtime [label="Runtime" color=lightblue];
     L7Code [label="JITCompiledCode" color=lightgray];
 
     L1Src -> L2Core -> L3Core -> L4Api -> L5JIT -> L7Code
@@ -166,7 +166,7 @@ dartはmain処理で、scriptを読み込んで、Isolateを初期化したの�
     L4Bootstrap [label="BootstrapNatives" color=lightgreen];
     L4Stubs [label="Stubs" color=lightgreen];
     L5Object [label="dart::Object" color=lightblue];
-    L5Runtime [label="RuntimeEntry" color=lightblue];
+    L5Runtime [label="Runtime" color=lightblue];
     L7Code [label="JITCompiledCode" color=lightgray];
 
     Main -> L3Src [folded]
@@ -197,6 +197,11 @@ dartはmain処理で、scriptを読み込んで、Isolateを初期化したの�
     }
   }
 
+前の図と違う点は、Dart API経由でJITコンパイルされている点です。JITコンパイルされたコードは、左上です。
+
+JITコンパイルされたコードがDart VMと連携したり、次の呼び出し先をcallする際には、
+StubsかBootstrapNativesのメソッドを呼び出します。
+
 JITコンパイラされるコード
 ===============================================================================
 
@@ -209,9 +214,15 @@ Dart VMがJITコンパイルするコードには2種類あって、
 
 JITコンパイルしたコードは、BootstrapNativesの処理か、Stub経由でDart VMが提供するRuntime処理を呼び出すことができます。
 
-.. Stubが存在する理由は、JITコンパイルしたコードから直接Runtimeを呼び出すのではなく、以下の処理を生成コード側で行うための関節的なレイヤーになります。
-.. 1. Dart VMのRuntime処理ごとに異なる、CallingConvの差異の吸収。
-.. 2. 飛び先を動的に切り替える、たとえば未コンパイルソースコードのJITコンパイル処理を呼ぶか、JITコンパイル済みコードに飛ぶか。
+今までStubと一括りにしていた処理は、generateされたStubと、Stub経由で呼ばれるRuntimeEntryに分かれます。
+
+Stubが存在する理由は、JITコンパイルしたコードから直接Runtimeを呼び出すのではなく、
+以下の処理を生成コード側で行うための間接的な構造にしているためです。
+
+1. 処理の共通化。JITコンパイルされたユーザプログラムのアセンブラがシンプルになり、サイズが減る。
+2. Runtime処理ごとに異なる、CallingConvの差異の吸収。Stubを呼び出す際のCallingConvは共通ですが、呼び出すRuntimeごとに異なります。
+3. Isolate共通のRuntime処理と、各Isolate固有のRuntime処理を呼び分けたい。共通化してテーブル引きしたくない。
+
 
 .. blockdiag::
 
@@ -331,15 +342,13 @@ runtime/vm/stub_code.h ::
 
 Isolateごとに分割するStubをぱっとみると、
 
-InvokeやOptimizeFunctionがありますが、Dart srcとJITコンパイル済みCodeの管理がIsolateごとに分かれているためです。
-
-InlineCache用のStubが多いですが、これもJITコンパイルしたCodeに依存するためです。
-
-AllocateContextやUpdateStoreBufferは、HeapやGC向けの処理になります。これらもIsolateごとに分かれています。
+1. InvokeとOptimizeFunction。Dart srcとJITコンパイル済みCodeの管理がIsolateごとに分かれているためです。
+2. InlineCache系。これもJITコンパイルしたCodeに依存するためです。
+3. リソース管理系、AllocateContextやUpdateStoreBufferは、HeapやGC向けの処理になります。これらもIsolateごとに分かれています。
 
 まとめ
 ===============================================================================
-Dart VMの構成要素として、ざっくり以下に分けられると考えています。
+Dart VMの構成要素は、以下に分けられると考えています。
 
 各要素は相互に連携しています。
 
@@ -385,12 +394,13 @@ Dartの構造管理
 ===============================================================================
 Dart のオブジェクト間の構造管理に関してはまったく触れてきませんでした。
 
-Isolate -> Class or Function -> ContextScopeなどから定義されています。
+DartはIsolateというTopLevelのContextが存在し、
+Isolateごとにソースコードの管理、JITコンパイルされたコードの管理、Heapの管理、GCの管理を行います。
+
+Isolateの配下には、Class or Function -> ContextScopeなどを定義しています。
 
 他にも、Closure、LocalScopeなどがあり、function_level, loop_level, context_levelなどに応じて、
-ネストして定義されます。
-
-それぞれのScopeから、以下のObjectPoolにひもづけられます。
+ネストして定義しています。
 
 ObjectPool
 ===============================================================================
@@ -398,23 +408,31 @@ ObjectPool
 
 - :doc:`advent20121218`
 
-Objectクラス系が、主に操作を担当して、RawObjectが実データを定義します。
+ObjectとRawObjectを継承したクラスは多数存在します。
 
+Objectクラス系が、主に操作を定義しています。
+そのため、ObjectクラスのメソッドはBootstrapNativesによって外部に公開されます。
+
+Objectクラスは、必ず対応するRawObjectの参照Raw()をフィールドに持ちます。
+
+RawObjectは実データを定義するクラスです。
 そのため、GCの対象はすべてRawObjectになります。
-
-Objectクラスのメソッドは、BootstrapNativesによって外部に公開されます。
 
 JITコンパイラ
 ===============================================================================
 Dart VMのJITコンパイラは、以下のパーツに分解されます。
 
-1. parser(DartのソースコードをparseしてASTに変換する処理)
+1. Parser(DartのソースコードをASTに変換する処理)
 2. AST(各種ASTNodeの定義)
 3. IRBuilder(ASTからIRに変換する処理)
 4. IR(各種IRの定義)
 5. Optimizer(IRを最適化する処理)
 6. Compiler(IRからアセンブラに変換する処理)
 7. Assembler(アセンブラからObjectCodeに変換する処理)
+
+非最適化JITコンパイルの場合、Optimizerの処理をskipします。
+
+Dart VMは、Dartのソースコード、AST、ObjectCode(非最適化、最適化の2つ)を管理対象とします。
 
 - :doc:`advent20121212` JITコンパイルの概要
 - :doc:`advent20121214` IR
@@ -427,19 +445,48 @@ Dart VMは、JITコンパイルされたコードから呼ばれるRuntimeサー
 
 1. JITコンパイル
 2. リソース管理(Allocate/StoreBuffer更新)
-3. Call/InlineCaching
-4. Deoptimization
+3. Call
+4. InlineCaching & TypeFeedback
+5. Deoptimization
+
+Allocateは、newした場合の空きメモリの確保です。
+StoreBuffer更新は、Old領域からNew領域への参照を更新し、世代別GCで処理します。
+
+Callは、メソッド呼び出しの解決です。Dart VMの場合、呼び出し先のアドレスを直接Callするのではなく、
+CallSiteごとにTableを引くことが多いです。
+
+InlineCachingは、非最適化コンパイル時の動的なメソッド呼び出し処理です。
+非最適化時の場合、呼び出し候補は多数存在するため、
+InlineCachingというテクニックを使用して呼び出し候補を高速に探し、解決します。
+
+TypeFeedbackは、InlineCacheの際に解決したメソッド呼び出し先を記録する処理です。
+
+CallSiteごとのメソッド呼び出し先情報を最適化JITコンパイル時に渡します。
+
+Deoptimizationは、最適化JITコンパイルされたコードの実行途中から、非最適化JITコンパイルされたコードに戻す処理です。
+
+Deoptimizationがあるため、最適化JITコンパイル時に、投機的に型を決めたり、投機的にinline展開を行うことができます。
 
 - :doc:`advent20121211` JITコンパイル
 - :doc:`advent20121215` StoreBuffer
 
 リソース管理
 ===============================================================================
-Dart VMのリソース管理は、ざっくりいって以下の3種類です。
+Dart VMのリソース管理は、ざっくり以下です。
 
 1. Heap
 2. Handle(RAII)
 3. GC
+4. Zone
+
+DartのObjectPoolはすべてHeapで管理します。HeapはNew領域とOld領域にわけ、世代別GCによって回収します。
+
+Allocateしたメモリを管理するHandle(RAII)を多数提供しています。Handleの参照は、GCにも関係します。
+
+Zoneは、Heap以外に確保する一時的なメモリ確保、管理です。
+ObjectPool以外に使うことが多く、処理が終了したら一斉に解法します。
+
+ScopeにHandleされたスタックのようなものかもしれません。
 
 - :doc:`advent20121210` HeapとGCの概要に関して
 - :doc:`advent20121217` GCのScavenger
@@ -448,12 +495,24 @@ Dart VMのリソース管理は、ざっくりいって以下の3種類です。
 ===============================================================================
 Dart VMの外部連携インターフェースを定義しています。
 
-1. BootstrapNatives
-2. DartAPI
-3. NativeEntry
-4. Stubs
+1. DartAPI
+2. BootstrapNatives
+3. Stubs
+4. NativeEntry
 5. CodeObserver
 6. Debugger
+
+DartAPIは、runtime/includeに定義されたDart VMを制御するためのAPIです。
+
+BootstrapNativesは、主にDartのCore APIがnative extensionで呼び出すシンボルです。
+
+Stubsは、JITコンパイルしたコード用に用意された補助です。
+
+NativeEntryは、上記BootstrapNativesとStub経由で呼ばれるシンボルと処理を定義します。
+
+CodeObserverとDebuggerは、Dart VMと連携する外部プログラム用に用意した処理になります。
+
+プロセスレベルで連携したり、何らかのファイルを経由して連携します。
 
 - :doc:`advent20121209` CodeObserver(perf連携)
 - :doc:`advent20121216` NativeEntry
