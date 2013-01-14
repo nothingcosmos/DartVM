@@ -12,6 +12,7 @@ Contents:
    :maxdepth: 2
 
    src/advent201212index
+   src_en/index
 
 Indices and tables
 ==================
