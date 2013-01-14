@@ -1,0 +1,114 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/13 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../../static/jquery.js"></script>
+    <script type="text/javascript" src="../../static/underscore.js"></script>
+    <script type="text/javascript" src="../../static/doctools.js"></script>
+    <script type="text/javascript" src="../../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../../index.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/13</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        <a class="uplink" href="../../index.html">Contents</a>
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-13">
+<h1>Dart VM Advent Calendar 2012 12/13<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-13" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dart-vm">
+<h2>Dart VM<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="id1">
+<h2>宿題<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<p>Dart VMのメモリレイアウト(isolateとマルチスレッド)</p>
+<p>GCの起点</p>
+<p>GCに関連する拡張機能(peer, external, handler)</p>
+</div>
+<hr class="docutils" />
+<div class="section" id="id2">
+<h2>拡張機能<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="gc">
+<h2>GCの起点<a class="headerlink" href="#gc" title="Permalink to this headline">¶</a></h2>
+</div>
+<div class="section" id="id3">
+<h2>構造<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<p>peer
+externl
+handler</p>
+<p>PageSpaceクラス。MarkSweepGC。page単位でallocationして、freelist管理で分割融合、再利用を行う。</p>
+<p>Scavengerクラス。mmapした領域を2分割するCopyGC。適時old領域にpromotion
+1pageに収まらないオブジェクトはLargePageとして別管理、適時allocation。</p>
+<p>GCの起点は、Allocationに失敗した時。
+GCを管理するのは、Heapオブジェクト。Heapは、Isolateごとに分割されており、Isolateが管理する。</p>
+<p>特徴
+peer領域をもつ。詳細は別途。
+GC対象外のHandlerを多数持つ。詳細は別途。</p>
+<p>GCの構造は非常にシンプルで、</p>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        <a class="uplink" href="../../index.html">Contents</a>
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>

@@ -1,0 +1,382 @@
+
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Dart VM Advent Calendar 2012 12/05 &mdash; Dart VM Overview 1.0 documentation</title>
+    
+    <link rel="stylesheet" href="../static/haiku.css" type="text/css" />
+    <link rel="stylesheet" href="../static/pygments.css" type="text/css" />
+    <link rel="stylesheet" href="../_static/print.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    '../',
+        VERSION:     '1.0',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="../static/jquery.js"></script>
+    <script type="text/javascript" src="../static/underscore.js"></script>
+    <script type="text/javascript" src="../static/doctools.js"></script>
+    <script type="text/javascript" src="../_static/theme_extras.js"></script>
+    <link rel="top" title="Dart VM Overview 1.0 documentation" href="../index.html" />
+    <link rel="up" title="Dart VM index" href="advent201212index.html" />
+    <link rel="next" title="Dart VM Advent Calendar 2012 12/07" href="advent20121207.html" />
+    <link rel="prev" title="Dart VM Advent Calendar 2012 12/04" href="advent20121204.html" /> 
+  </head>
+  <body>
+      <div class="header"><h1 class="heading"><a href="../index.html">
+          <span>Dart VM Overview 1.0 documentation</span></a></h1>
+        <h2 class="heading"><span>Dart VM Advent Calendar 2012 12/05</span></h2>
+      </div>
+      <div class="topnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121204.html">Dart VM Advent Calendar 2012 12/04</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121207.html">Dart VM Advent Calendar 2012 12/07</a>&#160;&#160;»
+        </p>
+
+      </div>
+      <div class="content">
+        
+        
+  <div class="section" id="dart-vm-advent-calendar-2012-12-05">
+<h1>Dart VM Advent Calendar 2012 12/05<a class="headerlink" href="#dart-vm-advent-calendar-2012-12-05" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="dart-vm-2">
+<h2>Dart VMの概要(2)<a class="headerlink" href="#dart-vm-2" title="Permalink to this headline">¶</a></h2>
+<p>続いて、fibo関数です。</p>
+<div class="highlight-python"><pre>int fibo(int n) {
+  if (n &lt; 2) {
+    return n;
+  } else {
+    return fibo(n - 1) + fibo(n - 2);
+  }
+}
+
+main() {
+  fibo(40);
+}
+
+$ dart fibo.dart
+102334155
+ret = 903 ms
+
+</pre>
+</div>
+</div>
+<div class="section" id="dart-vm">
+<h2>Dart VMの実行の流れ、続き<a class="headerlink" href="#dart-vm" title="Permalink to this headline">¶</a></h2>
+<p>前回のアセンブラ抜粋</p>
+<div class="highlight-python"><pre>//main body
+  t0 &lt;- Constant:3(#40)
+  PushArgument:4(t0)
+  StaticCall:5(fibo t0)
+0xb2f8817c    b850000000             mov eax,0x50                   &lt;-- fiboの引数40
+0xb2f88181    50                     push eax
+0xb2f88182    bab16b03b3             mov edx,0xb3036bb1  Array[1, 1, null]
+0xb2f88187    e87c823702             call 0xb5300408  [stub: CallStaticFunction] &lt;-- Stub越しにfibo呼び出し
+0xb2f8818c    83c404                 add esp,0x4</pre>
+</div>
+<p>Stub越しにfiboをcallしたところから。</p>
+<p>StubのCallStaticFunctionは、fibo関数がコンパイル済みかチェックし、</p>
+<p>コンパイルされていなければJITコンパイル(非最適化)してコードを生成します。</p>
+<p>コードをコンパイルしてpatchingした後は、以後コンパイルチェック処理には飛ばず、</p>
+<p>生成したコードに直接飛びます。</p>
+</div>
+<div class="section" id="fibo">
+<h2>fiboの中間表現(非最適化)<a class="headerlink" href="#fibo" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><pre>
+==== file:///home/elise/language/dart/work/adven/fibo.dart_::_fibo
+B0[graph]
+B1[target]
+    CheckStackOverflow:2()
+    t0 &lt;- LoadLocal:3(n lvl:0)                        //変数nをLoad(引数という概念はここではない)
+    t1 &lt;- Constant:4(#2)                              //定数2を生成
+    Branch if RelationalOp:5(&lt;, t0, t1) goto (2, 3)   //(t0 &lt; t1)だったら、B2へjump、もしくはB3へjump
+B2[target]
+    t0 &lt;- LoadLocal:7(n lvl:0)                        //定数nをLoad
+    Return:8(t0)                                      //Return
+B3[target]
+    t0 &lt;- LoadLocal:9(n lvl:0)                        //変数nをLoad
+    PushArgument:10(t0)                               //nを引数にpush
+    t0 &lt;- Constant:11(#1)                             //定数1を生成
+    PushArgument:12(t0)                               //#1を引数にpush
+    t0 &lt;- InstanceCall:13(-, t0, t0)                  //InstanceCall (-)(n, #1)みたいなメソッドコール
+    PushArgument:14(t0)                               //返値をpush        [`n-1`]
+    t0 &lt;- StaticCall:15(fibo t0)                      //fibo(n-1)に相当
+    PushArgument:16(t0)                               //返値をpush        [`fibo(n-1)`]
+    t0 &lt;- LoadLocal:17(n lvl:0)                       //変数nをLoad
+    PushArgument:18(t0)                               //nをpush
+    t0 &lt;- Constant:19(#2)                             //定数2を生成
+    PushArgument:20(t0)                               //#2をpush
+    t0 &lt;- InstanceCall:21(-, t0, t0)                  //InstanceCall (-)(n, 2)みたいなメソッドコール
+    PushArgument:22(t0)                               //返値をpush        [`fibo(n-1)`, `n-2`]
+    t0 &lt;- StaticCall:23(fibo t0)                      //fibo(n-2)に相当
+    PushArgument:24(t0)                               //返値をpush        [`fibo(n-1)`, `fibo(n-2)`]
+    t0 &lt;- InstanceCall:25(+, t0, t0)                  //InstanceCall (+)(`fibo(n-1)`, `fibo(n-2)`)
+    Return:26(t0)                                     //返値をreturn
+
+</pre>
+</div>
+<p>特徴は、(+)や(-)演算も、InstanceCallで呼び出している点です。</p>
+<p>Dartは言語仕様において、a + bは、a.(+)(b) のようなメソッド呼び出しの糖衣構文だそうです。</p>
+<p>そのため、変数aの型のメソッド(+)を、変数aのthisポインタと、変数bを引数に呼び出すイメージかな？</p>
+<p>InstanceCallはさらに特殊な命令で、InstanceCallから生成されるアセンブラコードの中で、
+変数aと変数bの型を記録する処理が入っています。</p>
+<p>Dart VMの型情報の収集は、InstanceCallの中で行うと考えてOKです。</p>
+<p>最初の(n-1)は、n(40)も1もint(Smi型)であるため、
+InstanceCall(-) では、InstanceCall(-)は、(Smi型,Smi型)から呼ばれたと記録されます。</p>
+</div>
+<div class="section" id="id1">
+<h2>fiboのアセンブラ(非最適化)<a class="headerlink" href="#id1" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-python"><pre>
+Code for function 'file:///home/elise/language/dart/work/adven/fibo.dart_::_fibo' {
+//prolog
+  //CheckStackOverflow:2()
+  0xb30481e8    55                     push ebp
+  0xb30481e9    89e5                   mov ebp,esp
+  0xb30481eb    e800000000             call 0xb30481f0
+  0xb30481f0    3b257c7a6b08           cmp esp,[0x86b7a7c]
+  0xb30481f6    0f86d1000000           jna 0xb30482cd
+
+  //t0 &lt;- LoadLocal:3(n lvl:0)
+  0xb30481fc    8b4508                 mov eax,[ebp+0x8]     //引数nからload
+  0xb30481ff    50                     push eax
+  //t1 &lt;- Constant:4(#2)
+  0xb3048200    b804000000             mov eax,0x4           //定数2をload
+  0xb3048205    50                     push eax
+
+  //Branch if RelationalOp:5(&lt;, t0, t1) goto (2, 3)
+  0xb3048206    59                     pop ecx
+  0xb3048207    58                     pop eax
+  0xb3048208    50                     push eax
+  0xb3048209    51                     push ecx
+  0xb304820a    b929062db3             mov ecx,0xb32d0629  'ICData target:'&lt;' num-checks: 0' (n&lt;2)の呼び出し準備
+  0xb304820f    ba89ba1eb3             mov edx,0xb31eba89  Array[2, 2, null]
+  0xb3048214    e8bf80ffff             call 0xb30402d8  [stub: TwoArgsCheckInlineCache] //2引数のInlineCache(&lt;)の呼び出し
+  0xb3048219    83c408                 add esp,0x8
+  //goto (2, 3)
+  0xb304821c    3d790f34b3             cmp eax, 0xb3340f79  'true'
+  0xb3048221    0f8520000000           jnz 0xb3048247
+[B2]
+  //t0 &lt;- LoadLocal:7(n lvl:0)
+  0xb3048227    8b4508                 mov eax,[ebp+0x8]   //引数nをload
+  0xb304822a    50                     push eax
+[epilog]
+  //Return:8(t0)
+  0xb304822b    58                     pop eax
+  0xb304822c    ba11042db3             mov edx,0xb32d0411  'Function 'fibo': static.'
+  0xb3048231    ff422b                 inc [edx+0x2b]       // fiboのinc usage_counterをinc
+  0xb3048234    817a2bd0070000         cmp [edx+0x2b],0x7d0 // 2000と比較してhotcode check
+  0xb304823b    7c05                   jl 0xb3048242
+  0xb304823d    e86686ffff             call 0xb30408a8  [stub: OptimizeFunction]
+  0xb3048242    89ec                   mov esp,ebp
+  0xb3048244    5d                     pop ebp
+  0xb3048245    c3                     ret                  // return n;
+  0xb3048246    90                     nop
+[B3]
+  //t0 &lt;- LoadLocal:9(n lvl:0)
+  0xb3048247    8b4508                 mov eax,[ebp+0x8]    //変数nからload
+  //PushArgument:10(t0)
+  0xb304824a    50                     push eax
+  //t0 &lt;- Constant:11(#1)
+  0xb304824b    b802000000             mov eax,0x2          //定数1をload
+  //PushArgument:12(t0)
+  0xb3048250    50                     push eax
+  //t0 &lt;- InstanceCall:13(-, t0, t0)
+  0xb3048251    b981062db3             mov ecx,0xb32d0681  'ICData target:'-' num-checks: 0' //(n-1)の呼び出し準備
+  0xb3048256    ba89ba1eb3             mov edx,0xb31eba89  Array[2, 2, null]
+  0xb304825b    e87880ffff             call 0xb30402d8  [stub: TwoArgsCheckInlineCache] //2引数のInlineCache(-)の呼び出し
+  0xb3048260    83c408                 add esp,0x8
+  //PushArgument:14(t0)
+  0xb3048263    50                     push eax
+  //t0 &lt;- StaticCall:15(fibo t0)
+  0xb3048264    bab16b0fb3             mov edx,0xb30f6bb1  Array[1, 1, null]
+  0xb3048269    e89a813702             call 0xb53c0408  [stub: CallStaticFunction]  //fibo(n-1)の呼び出し
+  0xb304826e    83c404                 add esp,0x4
+  //PushArgument:16(t0)
+  0xb3048271    50                     push
+  //t0 &lt;- LoadLocal:17(n lvl:0)
+  0xb3048272    8b4508                 mov eax,[ebp+0x8]   //変数nからload
+  //PushArgument:18(t0)
+  0xb3048275    50                     push eax
+  //t0 &lt;- Constant:19(#2)
+  0xb3048276    b804000000             mov eax,0x4         //定数2をload
+  //PushArgument:20(t0)
+  0xb304827b    50                     push eax
+  //t0 &lt;- InstanceCall:21(-, t0, t0)
+  0xb304827c    b9f1062db3             mov ecx,0xb32d06f1  'ICData target:'-' num-checks: 0' //n-1 の呼び出し準備
+  0xb3048281    ba89ba1eb3             mov edx,0xb31eba89  Array[2, 2, null]
+  0xb3048286    e84d80ffff             call 0xb30402d8  [stub: TwoArgsCheckInlineCache] //2引数のInlineCache(-)を呼び出し
+  0xb304828b    83c408                 add esp,0x8
+  //PushArgument:22(t0)
+  0xb304828e    50                     push eax
+  //t0 &lt;- StaticCall:23(fibo t0)
+  0xb304828f    bab16b0fb3             mov edx,0xb30f6bb1  Array[1, 1, null]
+  0xb3048294    e86f813702             call 0xb53c0408  [stub: CallStaticFunction] //fibo(n-2)の呼び出し
+  0xb3048299    83c404                 add esp,0x4
+  //PushArgument:24(t0)
+  0xb304829c    50                     push eax
+  //t0 &lt;- InstanceCall:25(+, t0, t0)
+  0xb304829d    b961072db3             mov ecx,0xb32d0761  'ICData target:'+' num-checks: 0' //fibo(n-1) + fibo(n-2)の呼び出し準備
+  0xb30482a2    ba89ba1eb3             mov edx,0xb31eba89  Array[2, 2, null]
+  0xb30482a7    e82c80ffff             call 0xb30402d8  [stub: TwoArgsCheckInlineCache] //2引数のInlineCache(+)を呼び出し
+  0xb30482ac    83c408                 add esp,0x8
+  0xb30482af    50                     push eax
+[epilog]
+  //Return:26(t0)
+  0xb30482b0    58                     pop eax
+  0xb30482b1    ba11042db3             mov edx,0xb32d0411  'Function 'fibo': static.'
+  0xb30482b6    ff422b                 inc [edx+0x2b]       // fiboのinc usage_counterをinc
+  0xb30482b9    817a2bd0070000         cmp [edx+0x2b],0x7d0 // 2000と比較してhotcode check
+  0xb30482c0    7c05                   jl 0xb30482c7
+  0xb30482c2    e8e185ffff             call 0xb30408a8  [stub: OptimizeFunction]
+  0xb30482c7    89ec                   mov esp,ebp
+  0xb30482c9    5d                     pop ebp
+  0xb30482ca    c3                     ret
+  0xb30482cb    90                     nop
+[runtime]
+  0xb30482cc    cc                     int3
+  0xb30482cd    b9f0c20a08             mov ecx,0x80ac2f0
+  0xb30482d2    ba00000000             mov edx,0
+  0xb30482d7    e84c7d3702             call 0xb53c0028  [stub: CallToRuntime]
+  0xb30482dc    e91bffffff             jmp 0xb30481fc
+  0xb30482e1    e942823702             jmp 0xb53c0528  [stub: FixCallersTarget]
+  0xb30482e6    e91d833702             jmp 0xb53c0608  [stub: DeoptimizeLazy]
+}
+
+
+
+</pre>
+</div>
+<p>非常に面白いのは、Branch if ReleationalOp()が、callになっている点。</p>
+<p>Dart VMでは、比較処理自体も、InstancCallのような呼び出しになっており、
+かつ呼び出し先で型情報を収集する。</p>
+<p>それなら、比較処理自体をInstanceCallとgotoの2中間表現に分けてしまってよいように思うが、
+両者を融合した、非常に大粒な中間表現にしている。それには理由があるが、後で。</p>
+</div>
+<div class="section" id="jit">
+<h2>JITコンパイラ(非最適化)が生成したコードはどんな型でも動作する。<a class="headerlink" href="#jit" title="Permalink to this headline">¶</a></h2>
+<p>ここでちょっと注意点なのですが、Dart VMのJITコンパイラ(非最適化)が生成したコードはどんな型でも動作します。</p>
+<p>DartはOptional Typeであり、コンパイル時に型を参照してWarningは発生しますが、
+ソースコードに書いた型情報は、Runtimeに何の作用も及ぼさないように設計されています。</p>
+<p>そのため、ソースコードと中間表現は以下のような対応を取ります。</p>
+<p>イメージ図</p>
+<div class="highlight-python"><pre>ソースコード                   中間表現
+int    n=0  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)
+double n=0.0; n = n + 1;   --&gt; InstanceCall(+, n, 1)
+Point  n=p  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)
+var    n=0  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)</pre>
+</div>
+<p>しかし、実行するコードではそうはいかないです。</p>
+<div class="highlight-python"><pre>ソースコード                   中間表現                   コード
+int    n=0  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)  --&gt; ((Smi)n)   .(add)((smi)1)
+double n=0.0; n = n + 1;   --&gt; InstanceCall(+, n, 1)  --&gt; ((double)n).(add)((smi)1)
+Point  n=p  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)  --&gt; ((Point)n) .(add)((smi)1)
+var    n=0  ; n = n + 1;   --&gt; InstanceCall(+, n, 1)  --&gt; ((Smi)n)   .(add)((smi)1)</pre>
+</div>
+<p>コード上では、Runtimeの型に応じて、呼び出すメソッドを切り替える必要があります。</p>
+<p>多くの動的型付け言語の処理系は、上記のような処理を、インタプリタが行っているはずです。</p>
+<p>しかしJITコンパイルするDart VMは、
+上記のように型情報を参照して動的メソッドディスパッチするコードを生成しておきます。</p>
+<p>そのため、(+)や(&lt;)などの基本演算も、すべてメソッドになります。</p>
+<div class="admonition note">
+<p class="first admonition-title">Note</p>
+<p>DartはPreCompile時には静的型付けですが、Runtimeでは動的型付けなので、、</p>
+<p>Dartは、receiver型の動的ディスパッチです。第1引数(thisポインタ？)のみ参照する。</p>
+<p class="last">そのため、fibo(int n)とfibo(double n)はRuntime時に定義が衝突してエラーになります。</p>
+</div>
+<p>そのため、以下のTwoArgsCheckInlineCacheのStub呼び出しは、
+引数にどんな型が来ても、呼び出し先のメソッドを適切に選んで、目的の(+)メソッドを呼び出します。</p>
+<p>TwoArgsCheckInlineCache</p>
+<div class="highlight-python"><pre>mov ecx,0xb32d06f1  'ICData target:'+' num-checks: 0'
+mov edx,0xb31eba89  Array[2, 2, null]
+call 0xb30402d8  [stub: TwoArgsCheckInlineCache] //2引数のInlineCache
+add esp,0x8</pre>
+</div>
+<p>しかし、呼び出す(+)メソッドの候補は多数あり、毎回探して呼び出すと性能劣化が懸念されます。</p>
+<p>そのため、InlineCacheという動的メソッドディスパッチの最適化方法を使用します。</p>
+</div>
+<div class="section" id="inlinecache">
+<h2>InlineCache<a class="headerlink" href="#inlinecache" title="Permalink to this headline">¶</a></h2>
+<p>中間表現上で、RelationalOpやInstanceCallだった命令が、
+コード上ではTwoArgsCheckInlineCacheのstub呼び出しに変換されています。</p>
+<p>InlineCacheは、多型のメソッドディスパッチを高速化するため、
+よく呼ばれる型をキャッシュしておき、高速に呼び出せるようにする仕組みです。</p>
+<p>動的型付けだとしても、calleeが呼び出すメソッドは同じであることが多いため、高速に動作します。</p>
+<p>InlineCacheは、calleeごとにCacheを持ち、メソッド呼び出し履歴を記録します。</p>
+<p>fiboが呼び出すメソッド、(&lt;)と(-)と(-)と(+)の4ヶ所で、各々がCacheテーブルを持つはずです。</p>
+<p>また、TwoArgsCheckInlineCacheのStubは、未解決クラスのloadとJITコンパイルも行うことができます。</p>
+<p>仮に未解決のPointクラスの(+)メソッドを呼び出す場合、以下の手順が必要でしょう。</p>
+<ol class="arabic simple">
+<li>Pointクラスを探す。</li>
+<li>Pointクラスに(+)メソッドが定義されているか確認。</li>
+<li>(+)メソッドをJITコンパイルしてコードを生成する。</li>
+</ol>
+</div>
+<div class="section" id="id2">
+<h2>次回、最適化JITコンパイル！！！<a class="headerlink" href="#id2" title="Permalink to this headline">¶</a></h2>
+<p>fiboはfiboを再帰呼び出しするため、いつかは呼び出し回数2000回を越えて、
+OptimizeFunctionの呼び出しにより、再コンパイル(最適化)されることになる。</p>
+<p>最適化する際には、InlineCacheやInstanceCallの呼び出し時に情報収集した型情報を活用して、
+高速なコードを生成します。</p>
+<p>続きは次回で。。</p>
+</div>
+<div class="section" id="id3">
+<h2>まとめ<a class="headerlink" href="#id3" title="Permalink to this headline">¶</a></h2>
+<ol class="arabic simple">
+<li>+や-や&lt;演算子は、InlineCacheになる。</li>
+<li>InlineCacheの中で、型情報を収集する。</li>
+<li>fiboは再帰呼び出しで、次回最適化JITコンパイルされそう！！！</li>
+</ol>
+</div>
+</div>
+
+
+      </div>
+      <div class="bottomnav">
+      
+        <p>
+        «&#160;&#160;<a href="advent20121204.html">Dart VM Advent Calendar 2012 12/04</a>
+        &#160;&#160;::&#160;&#160;
+        <a class="uplink" href="../index.html">Contents</a>
+        &#160;&#160;::&#160;&#160;
+        <a href="advent20121207.html">Dart VM Advent Calendar 2012 12/07</a>&#160;&#160;»
+        </p>
+
+      </div>
+
+
+    <div class="footer">
+        &copy; Copyright 2012, nothingcosmos.
+      Created using <a href="http://sphinx.pocoo.org/">Sphinx</a> 1.1.3.
+    </div>
+
+<script type="text/javascript">
+
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-15223787-5']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+   var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+   ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+   var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+   })();
+
+</script>
+
+
+  </body>
+</html>
