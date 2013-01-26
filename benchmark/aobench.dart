@@ -297,6 +297,7 @@ class Vec {
         List<int> renderLine = new List<int>(IMAGE_WIDTH * 3);
 
         OutputStream fout = new File(fileName).openOutputStream();
+        var out = new StringBuffer();
         
         fout.writeString("P3\n");
         fout.writeString("$IMAGE_WIDTH $IMAGE_HEIGHT\n");
@@ -306,10 +307,8 @@ class Vec {
             rowRender(renderLine, IMAGE_WIDTH, IMAGE_HEIGHT, y, NSUBSAMPLES);
 
             for (int x = 0; x < (IMAGE_WIDTH * 3); x += 3) {
-              var out = new StringBuffer();
-              out.add(renderLine[x + 0]).add(" ");
-              out.add(renderLine[x + 1]).add(" ");
-              out.add(renderLine[x + 2]).add("\n");
+              out.clear();
+              out.add("${renderLine[x+0]} ${renderLine[x+1]} ${renderLine[x+2]}\n");
               fout.writeString(out.toString());
             }
         }
