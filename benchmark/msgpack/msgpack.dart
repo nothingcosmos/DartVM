@@ -1,12 +1,17 @@
 library msgpack;
+import 'dart:utf';
+import 'dart:async';
 import 'dart:scalarlist';
-//msgpackの対象は、dartのsnapshotと同じにする。
+//msgpackの対象は、dartのsnapshotに合わせる。
 //A primitive value (null, num, bool, double, String)
 //A list or map whose elements are any of the above, including other lists and maps
+//
+//todo bigintは対象外。
+
 
 //C++で書いてDartVMに組み込みたいけど、
 //Clientで使うことも考慮し、まずはDartで実装。
-//VMでしか使えないクラスは使わないように。。scalarlistってclientでも使えるっけ？
+//VMでしか使えないクラスは使わないように。。scalarlistってclientでも使えるよね？
 //Uint8Listを使う？普通のList<int>？
 //Uint8Arrayなどのarraybufferによる実装に書き直すべきかも？
 
@@ -17,12 +22,21 @@ import 'dart:scalarlist';
 
 //内部のbuffをuint8listにしたいが、サイズを切り詰めるメソッドが存在しない。
 
-//todo bigint対応
-//todo pythonからmapを投げるとdecodeに失敗する。
-//todo マルチバイトのstring対応
+//fix minus値のdeserializeに失敗する。
+//2の補数表現からintのminus値に変換している。
+//fix マルチ文字に未対応
+//文字列はutf8にencode/decode
+//fix pythonからmapを投げるとdecodeに失敗する。
+//packとunpackにおいて、size*2して、keyとvalueそれぞれのsizeをカウントしていた。
 
 class MessagePack {
-  static List packb(arg, {uint8:false}) {
+  static Future<List> packb(arg, {uint8:false}) {
+    Completer c = new Completer();
+    new Timer(0, (timer) => c.complete(packbSync(arg, uint8:uint8)));
+    return c.future;
+  }
+  
+  static List packbSync(arg, {uint8:false}) {
     var buff = new List();
     _write(buff, arg);
 
@@ -40,7 +54,13 @@ class MessagePack {
       return ret;
     }
   }
-  static unpackb(List byte) {
+  
+  static Future unpackb(List byte) {
+    Completer c = new Completer();
+    new Timer(0, (timer) => c.complete(unpackbSync(byte)));
+    return c.future;
+  }
+  static unpackbSync(List byte) {
     _ridx = 0;
     //debug
     //byte.forEach((e) => print("read=${e},${e.toRadixString(16)}"));
@@ -49,60 +69,57 @@ class MessagePack {
   static int _ridx;
   static _read(List byte) {
     int size = 0;
-    
     var type = byte[_ridx++];
-    if (type >= 0xe0) {         // Negative FixNum (111x xxxx) (-32 ~ -1)
+    
+    if (type >= negativeFixnumType) {         // Negative FixNum (111x xxxx) (-32 ~ -1)
         return type - 0x100;
     }
-    if (type < 0x80) {          // Positive FixNum (0xxx xxxx) (0 ~ 127)
+    if (type < (128)) {          // Positive FixNum (0xxx xxxx) (0 ~ 127)
         return type;
     }
-    if (type < 0x90) {          // FixMap (1000 xxxx)
-        size = type - 0x80;
-        type = 0x80;
-    } else if (type < 0xa0) {   // FixArray (1001 xxxx)
-        size = type - 0x90;
-        type = 0x90;
-    } else if (type < 0xc0) {   // FixRaw (101x xxxx)
-        size = type - 0xa0;
-        type = 0xa0;
+    if (type < fixArrayType) {          // FixMap (1000 xxxx)
+        size = type - fixMapType;
+        type = fixMapType;
+    } else if (type < fixRawType) {   // FixArray (1001 xxxx)
+        size = type - fixArrayType;
+        type = fixArrayType;
+    } else if (type < nullType) {   // FixRaw (101x xxxx)
+        size = type - fixRawType;
+        type = fixRawType;
     }
-    
     var num = 0;
     switch (type) {
-      case 0xc0:  return null;
-      case 0xc2:  return false;
-      case 0xc3:  return true;
-      case 0xcb://double
+      case nullType:
+        return null;
+      case falseType:
+        return false;
+      case trueType:
+        return true;
+      case doubleType:
         for (int i=0; i<8; i++) {
-          byte64.setUint8(i, byte[_ridx++]);
+          _byte64.setUint8(i, byte[_ridx++]);
         }
-        return byte64.getFloat64(0);
-      case 0xd0://signed  8bit integer (0xd0 0x)
-        num += (byte[_ridx++]^0xff);
-        num = (num + 1)*-1;
-        return num;
-      case 0xd1://signed 16bit integer (0xd1 0x 0x)
-        num += (byte[_ridx++]^0xff)<<8;
-        num += (byte[_ridx++]^0xff);
-        num = (num + 1)*-1;
-        return num;
-      case 0xd2://signed 32bit integer (0xd2 0x 0x 0x 0x)
-        num += (byte[_ridx++]^0xff)<<24;
-        num += (byte[_ridx++]^0xff)<<16;
-        num += (byte[_ridx++]^0xff)<<8;
-        num += (byte[_ridx++]^0xff);
-        num = (num + 1)*-1;
-        return num;
+        return _byte64.getFloat64(0);
+
       case 0xd3://signed 64bit integer (0xd3 0x 0x 0x 0x 0x 0x 0x 0x)
         num += (byte[_ridx++]^0xff)<<56;
         num += (byte[_ridx++]^0xff)<<48;
         num += (byte[_ridx++]^0xff)<<40;
         num += (byte[_ridx++]^0xff)<<32;
+        continue label32;
+label32:
+      case 0xd2:
         num += (byte[_ridx++]^0xff)<<24;
         num += (byte[_ridx++]^0xff)<<16;
+        continue label16;
+label16:
+      case 0xd1:
         num += (byte[_ridx++]^0xff)<<8;
+        continue label8;
+label8:
+      case 0xd0:
         num += (byte[_ridx++]^0xff);
+        
         num = (num + 1)*-1;
         return num;
       case 0xcc://unsigned 8bit integer
@@ -131,17 +148,21 @@ class MessagePack {
       case 0xdb:// raw 32
         size = _readByte(byte.skip(_ridx), 4);                       
         _ridx+=4;
-        String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        //ここでarrayのviewだけかえしたいんだけど。
+        String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
       case 0xda:// raw 16
         size = _readByte(byte.skip(_ridx), 2);   
         _ridx+=2;
-        String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
       case 0xa0:// fixraw
-        String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
       case 0xdf:// 0xdf: map32 
@@ -150,7 +171,7 @@ class MessagePack {
         size += byte[_ridx++]<<8;
         size += byte[_ridx++];
         Map ret = new Map();
-        for (int i=0; i<size; i+=2) {
+        for (int i=0; i<size; i++) {
           var key = (_read(byte));
           ret[key] = (_read(byte));
         }
@@ -160,14 +181,14 @@ class MessagePack {
         size += byte[_ridx++];
         
         Map ret = new Map();
-        for (int i=0; i<size; i+=2) {
+        for (int i=0; i<size; i++) {
           var key = (_read(byte));
           ret[key] = (_read(byte));
         }
         return ret;
       case 0x80: //0x80: map
         Map ret = new Map();
-        for (int i=0; i<size; i+=2) {
+        for (int i=0; i<size; i++) {
           var key = (_read(byte));
           ret[key] = (_read(byte));
         }
@@ -198,132 +219,72 @@ class MessagePack {
         ret[i] = (_read(byte));
       }
       return ret;       
-    }
-  }
-  
-  static _writeBigInt(List<int> out, int d) {
-    //todo
-  }
-  static _writeMint(List<int> out, int d) {
-    if (d > 0) {
-      out.add(0xcf);// unsigned 64
-      byte64.setUint64(0, d);
-    } else {
-      out.add(0xd3);// signed 64
-      byte64.setUint64(0, d);
-    }
-   
-    for (int i=0; i<8; i++) {
-      out.add(byte64.getUint8(7-i));
-    }
-  }
-  static _writeSmi(List<int> out, int d) {
-    if (d < -(1 << 5)) {
-      if (d < -(1 << 15)) {
-        byte32.setInt32(0, d);
-        // signed 32
-        out.add(0xd2);
-        out.add(byte32.getUint8(3));
-        out.add(byte32.getUint8(2));
-        out.add(byte32.getUint8(1));
-        out.add(byte32.getUint8(0));
-      } else if (d < -(1 << 7)) {
-        byte32.setInt16(0, d);
-        // signed 16
-        out.add(0xd1);
-        out.add(byte32.getUint8(1));
-        out.add(byte32.getUint8(0));
-      } else {
-        // signed 8
-        out.add(0xd0);
-        out.add(d&0xff);
-      }
-    } else if (d < (1 << 7)) {
-      // fixnum
-      out.add(d);
-    } else {
-      if (d < (1 << 8)) {
-        // unsigned 8
-        out.add(0xcc);
-        out.add(d);
-      } else if (d < (1 << 16)) {
-        byte16.setUint16(0, d);
-        // unsigned 16
-        out.add(0xcd);
-        out.add(byte16.getUint8(1));
-        out.add(byte16.getUint8(0));
-      } else {
-        byte32.setUint32(0, d);
-        // unsigned 32
-        out.add(0xce);
-        out.add(byte32.getUint8(3));
-        out.add(byte32.getUint8(2));
-        out.add(byte32.getUint8(1));
-        out.add(byte32.getUint8(0));
-      }
+    default:
+        //todo
+        return null;
     }
   }
   
   static _writeInt64(List<int> out, int d) {
-    byte64.setUint64(0, d);
-    out.add(0xd3);// signed 64
-    out.add(byte64.getUint8(7));
-    out.add(byte64.getUint8(6));
-    out.add(byte64.getUint8(5));
-    out.add(byte64.getUint8(4));
-    out.add(byte64.getUint8(3));
-    out.add(byte64.getUint8(2));
-    out.add(byte64.getUint8(1));
-    out.add(byte64.getUint8(0));
+    //setInt64 runtime/vm/object.cc:10403: error: unreachable code
+    _byte64.setUint64(0, d);
+    out.add(int64Type);
+    out.add(_byte64.getUint8(7));
+    out.add(_byte64.getUint8(6));
+    out.add(_byte64.getUint8(5));
+    out.add(_byte64.getUint8(4));
+    out.add(_byte64.getUint8(3));
+    out.add(_byte64.getUint8(2));
+    out.add(_byte64.getUint8(1));
+    out.add(_byte64.getUint8(0));
   }
   static _writeInt32(List<int> out, int d) {
-    byte32.setInt32(0, d);
-    out.add(0xd2);// signed 32
-    out.add(byte32.getUint8(3));
-    out.add(byte32.getUint8(2));
-    out.add(byte32.getUint8(1));
-    out.add(byte32.getUint8(0));
+    _byte32.setInt32(0, d);
+    out.add(int32Type);
+    out.add(_byte32.getUint8(3));
+    out.add(_byte32.getUint8(2));
+    out.add(_byte32.getUint8(1));
+    out.add(_byte32.getUint8(0));
   }
   static _writeInt16(List<int> out, int d) {
-    byte32.setInt16(0, d);
-    out.add(0xd1);// signed 16
-    out.add(byte32.getUint8(1));
-    out.add(byte32.getUint8(0));
+    _byte32.setInt16(0, d);
+    out.add(int16Type);
+    out.add(_byte32.getUint8(1));
+    out.add(_byte32.getUint8(0));
   }
   static _writeInt8(List<int> out, int d) {
-    out.add(0xd0);// signed 8
-    out.add(d&0xff);
+    out.add(int8Type);
+    out.add(d);
   }
   static _writeUint64(List<int> out, int d) {
-    byte64.setUint64(0, d);
-    out.add(0xcf);// unsigned 64     
-    out.add(byte64.getUint8(7));
-    out.add(byte64.getUint8(6));
-    out.add(byte64.getUint8(5));
-    out.add(byte64.getUint8(4));
-    out.add(byte64.getUint8(3));
-    out.add(byte64.getUint8(2));
-    out.add(byte64.getUint8(1));
-    out.add(byte64.getUint8(0));
-    
+    _byte64.setUint64(0, d);
+    out.add(uint64Type);
+    out.add(_byte64.getUint8(7));
+    out.add(_byte64.getUint8(6));
+    out.add(_byte64.getUint8(5));
+    out.add(_byte64.getUint8(4));
+    out.add(_byte64.getUint8(3));
+    out.add(_byte64.getUint8(2));
+    out.add(_byte64.getUint8(1));
+    out.add(_byte64.getUint8(0));
   }
   static _writeUint32(List<int> out, int d) {
-    byte32.setUint32(0, d);
-    out.add(0xce);// unsigned 32
-    out.add(byte32.getUint8(3));
-    out.add(byte32.getUint8(2));
-    out.add(byte32.getUint8(1));
-    out.add(byte32.getUint8(0));
+    _byte32.setUint32(0, d);
+    out.add(uint32Type);
+    out.add(_byte32.getUint8(3));
+    out.add(_byte32.getUint8(2));
+    out.add(_byte32.getUint8(1));
+    out.add(_byte32.getUint8(0));
     
   }
   static _writeUint16(List<int> out, int d) {
-    byte16.setUint16(0, d);
-    out.add(0xcd);// unsigned 16
-    out.add(byte16.getUint8(1));
-    out.add(byte16.getUint8(0));
+    _byte16.setUint16(0, d);
+    out.add(uint16Type);
+    out.add(_byte16.getUint8(1));
+    out.add(_byte16.getUint8(0));
   }
   static _writeUint8(List<int> out, int d) {
-    out.add(0xcc);// unsigned 8
+    out.add(uint8Type);
     out.add(d);
   }
   
@@ -362,11 +323,9 @@ class MessagePack {
   }
   
   static _writeDouble(List<int> out, double d) {
-    out.add(0xcb);
-    
-    Uint8List ret = new Uint8List(8);
-    ret.asByteArray(0, 8).setFloat64(0, d);
-    out.addAll(ret.toList());
+    out.add(doubleType);
+    _buff64.asByteArray().setFloat64(0, d);
+    out.addAll(_buff64);
   }
   static _readByte(List byte, int size) {
     int ret = 0;
@@ -383,7 +342,7 @@ class MessagePack {
     }
     return ret;
   }
-  static _setType(List<int> out,
+  static _writeType(List<int> out,
           int fixSize, // @param Number: fix size. 16 or 32
           int size,    // @param Number: size
           List<int> types) { // @param ByteArray: type formats. eg: [0x90, 0xdc, 0xdd]
@@ -399,89 +358,101 @@ class MessagePack {
         out.add(types[2]);
         out.add(size >> 24);
         out.add(size >> 16);
-        out.add(size >>  8);
+        out.add(size >> 8);
         out.add(size & 0xff);
         return 5;
     }
   }
   static _writeString(List<int> out, String s) {
-    _setType(out,32, s.length, [0xa0, 0xda, 0xdb]);
-    out.addAll(s.charCodes);
+    List<int> enc = encodeUtf8(s);
+    _writeType(out,32, enc.length, [fixRawType, raw16Type, raw32Type]);
+    out.addAll(enc);
+  }
+  
+  static _writeMap(List<int> out, Map m) {
+    int size = m.length;
+    int index = _writeType(out, 16, size, [fixMapType, map16Type, map32Type]);
+    for (var key in m.keys) {
+      _write(out, key);
+      _write(out, m[key]);
+    }
+  }
+  
+  static _writeList(List<int> out, List m) {
+    int size = m.length;
+    int index = _writeType(out, 16, size, [fixArrayType, array16Type, array32Type]);
+    for (int i=0; i<m.length; i++) {
+      _write(out, m[i]);
+    }
   }
 
   static _write(List buff, arg) {
-    if (arg == null) { // null -> 0xc0 ( null )
-        buff.add(0xc0);
+    if (arg == null) {
+        buff.add(nullType);
     } else if (arg is bool) {
-      if (arg == false) { // false -> 0xc2 ( false )
-        buff.add(0xc2);
-      } else {  // true  -> 0xc3 ( true  )
-        buff.add(0xc3);
-      }
+      if (arg == false) buff.add(falseType);
+      else buff.add(trueType);
     } else if (arg is int) {
-      _writeInt(buff, arg);
-//      if (0 < arg) {
-//        if (max_smi < arg) {
-//          _writeSmi(buff, arg);
-//        } else if (max_mint < arg) {
-//          _writeMint(buff, arg);
-//        } else {
-//          
-//        }
-//      } else {
-//        if (min_smi < arg) {
-//          _writeSmi(buff, arg);
-//        } else if (min_mint < arg) {
-//          _writeMint(buff, arg);
-//        } else {
-//          
-//        }
-//      }
-      
-//        if (max_mint < arg || min_mint > arg) {
-//          
-//        } else if (max_smi < arg || min_smi > arg) {
-//          _writeMint(buff, arg);
-//        } else {
-//          _writeSmi(buff, arg);
-//        }
-      
-//        if (min_smi <= arg && arg <= max_smi) {
-//          _writeSmi(buff, arg);
-//        } else if (min_mint <= arg && arg <= max_mint) {
-//          _writeMint(buff, arg);
-//        } else {
-//          _writeBigInt(buff, arg);
-//        }
+      _writeInt(buff, arg);     
     } else if (arg is double) {
       _writeDouble(buff, arg);
     } else if (arg is String) {
       _writeString(buff, arg);
     } else if (arg is List) {
-      int size = arg.length;
-      int index = _setType(buff, 16, size, [0x90, 0xdc, 0xdd]);
-      for (int i=0; i<arg.length; i++) {
-        _write(buff, arg[i]);
-      }
+      _writeList(buff, arg);
     } else if (arg is Map) {
-      int size = arg.length;
-      int index = _setType(buff, 16, size*2, [0x80, 0xde, 0xdf]);
-      for (var key in arg.keys) {
-        _write(buff, key);
-        _write(buff, arg[key]);
-      }    
+      _writeMap(buff, arg);
     } else {
       //error
+      //todo
     }
   }
-  static ByteArray byte16 = new Uint8List(2).asByteArray(0,2);
-  static ByteArray byte32 = new Uint8List(4).asByteArray(0,4);
-  static ByteArray byte64 = new Uint8List(8).asByteArray(0,8);
-  static ByteArray _createByteArray(int size) {
-    return new Uint8List(size).asByteArray(0, size);
-  }
-  static final max_smi = (1<<31)-1;
-  static final min_smi = (-1<<31);
-  static final max_mint = (1<<63)-1;
-  static final min_mint = (-1<<63);
+  
+  static final ByteArray _byte16 = new Uint8List(2).asByteArray(0,2);
+  static final ByteArray _byte32 = new Uint8List(4).asByteArray(0,4);
+  static final ByteArray _byte64 = new Uint8List(8).asByteArray(0,8);
+  static final Uint8List _buff32 = new Uint8List(4);
+  static final Uint8List _buff64 = new Uint8List(8);
+  static ByteArray _buff32View() => _buff32.asByteArray(0,4);
+  static ByteArray _buff64View() => _buff64.asByteArray(0,8);
+
+  static const _max_smi = (1<<31)-1;
+  static const _min_smi = (-1<<31);
+  static const _max_mint = (1<<63)-1;
+  static const _min_mint = (-1<<63);
+  
+  //表現形式
+  //Fixnum
+  static const int negativeFixnumType = 0xe0;
+  static const int negativeFixnumMask = 0x1f;
+  static const int map32Type = 0xdf;
+  static const int map16Type =  0xde;
+  static const int array32Type = 0xdd;
+  static const int array16Type = 0xdc;
+  static const int int64Type = 0xd3;
+  static const int int32Type = 0xd2;
+  static const int int16Type = 0xd1;
+  static const int raw32Type = 0xdb;
+  static const int raw16Type = 0xda;
+  static const int int8Type = 0xd0;
+  static const int uint64Type = 0xcf;
+  static const int uint32Type = 0xce;
+  static const int uint16Type = 0xcd;
+  static const int uint8Type = 0xcc;
+  static const int doubleType = 0xcb;
+  static const int trueType = 0xc3;
+  static const int falseType = 0xc2;
+  static const int nullType = 0xc0;
+  //FixRaw
+  static const int fixRawType = 0xa0;
+  static const int fixRawMask = 0x1f;
+  //FixArray
+  static const int fixArrayType = 0x90;
+  static const int fixArrayMask = 0x0f;
+  //FixMap
+  static const int fixMapType = 0x80;
+  static const int fixMapMask = 0x0f;
+  //Fixnum
+  static const int positiveFixnumType = 0x00;
+  static const int positiveFIxnumMask = 0x7f;
 }

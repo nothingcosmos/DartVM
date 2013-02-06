@@ -10,9 +10,9 @@ connect(Socket s) {
   s.onData = () {
     List recvdata = s.read(1024);
     recvdata.forEach((e) => print("recv=${e},${e.toRadixString(16)}"));
-    var getdata = MessagePack.unpackb(recvdata);
+    var getdata = MessagePack.unpackbSync(recvdata);
     print("recv $getdata");
-    var data = MessagePack.packb(getdata);
+    var data = MessagePack.packbSync(getdata);
     s.writeList(data, 0, data.length);
   };
 }

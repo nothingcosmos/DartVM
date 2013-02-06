@@ -1,4 +1,6 @@
 import "msgpack.dart";
+import "dart:async";
+import "dart:json";
 
 testList(var a, var b) {
   if (a.length != b.length) return false;
@@ -24,9 +26,22 @@ testVar(var a, var b) {
   return a == b;
 }
 
+testAsync(var a) {
+  var w = MessagePack.packb(a, uint8:true);
+  w.then((wval) {
+    var ret = MessagePack.unpackb(wval);
+    ret.then((d) {
+      if (testVar(a, d)) return true;
+      print("NG $a != $ret");
+      error++;
+    }).catchError((onError) => print("unpackb error = $onError"));
+  }).catchError((onError) => print("packb error = $onError"));
+  return false;
+}
+
 test(var a) {
-  var w = MessagePack.packb(a, uint8:false);
-  var ret = MessagePack.unpackb(w);
+  var w = MessagePack.packbSync(a, uint8:false);
+  var ret = MessagePack.unpackbSync(w);
   //if (testVar(a, ret)) return true;
   //print("NG $a != $ret");
   //error++;
@@ -55,7 +70,9 @@ testOK() {
   test((1<<48));
   test((1<<56));
   test((1<<63)-1);
-  //test((1<<63));
+  test((1<<63));
+  test((1<<63)+1);
+  test((1<<64)-1);
   //signed
   test(-100);
   test(-128);
@@ -77,9 +94,13 @@ testOK() {
   test((-1<<40));
   test((-1<<48));
   test((-1<<56));
+  test(-(1<<56));
   test((-1<<63)+1);
+  //error test((-1<<63)-1);
   test((-1<<63));
-  //test((-1<<63)-1);
+  //error test((-1<<64)+1);
+  test((-1<<64));
+
   //double
   test(0.0);
   test(+0.0);
@@ -91,6 +112,10 @@ testOK() {
   //String
   test("hello");
   test("01234567890123456789001234567890123456789");
+  test("こんにちは");
+  test("utf8でencode/decode");
+  test("");
+  test("0");
 
   //List
   List intlist = new List(10);
@@ -113,17 +138,47 @@ testOK() {
                  {}, 100, 0.1, true, false, null];
   //test(json001);
   
-  var json002 = {"key0":100, "key1":"value1"};
+  var json002 = {"key0":100, "key1":"ヴぁぅえ"};
   test(json002);
 }
 
+initMap(int n) {
+  Map ret = new Map();
+  for (int i=0; i<n; i++) {
+    String key = "key_${i}";
+    ret[key] = "${i}0123456789012345678901234567890123456789abcdefghijklmpopqrstuvqwxyz0123456789012345678901234567890123456789abcdefghijklmpopqrstuvqwxyz$i";
+  }
+  return ret;
+}
+
 main() {
+  mainTest1();
+  //mainTest2();
+}
+mainTest2() {
+  var map = initMap(50000);
+  print("msgpack time = ${time(() {
+    var ret = MessagePack.packbSync(map);
+    print ("size = ${ret.length}");
+  })} ms"); 
+  print("msgpack time = ${time(() {
+    var ret = MessagePack.packbSync(map, uint8:true);
+    print ("size = ${ret.length}");
+  })} ms"); 
+  
+  print("json time = ${time(() {
+    var ret = stringify(map);
+    print ("size = ${ret.length}");
+  })} ms"); 
+}
+
+mainTest1() {
   var mt = time(() {
     for (int i=0; i<1000;i++) {
+      print("iteration $i");
       testOK();
     }
   });
-  //test("こんにちは");//error
   print("error = $error");
   print("time = $mt msec");
 }
