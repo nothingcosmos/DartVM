@@ -24,8 +24,6 @@ import 'dart:scalarlist';
 //fix pythonからmapを投げるとdecodeに失敗する。
 //packとunpackにおいて、size*2して、keyとvalueそれぞれのsizeをカウントしていた。
 
-//Float32Listをpackした際に、特殊なパスを追加して高速化してもいいけども。。
-
 /**
  * msgpackの対象は、dartのsnapshotに合わせる。
  *
@@ -33,8 +31,6 @@ import 'dart:scalarlist';
  *    A list or map whose elements are any of the above, including other lists and maps
  *
  * - 64bitで表現できないintは対象外。
- * - 浮動小数点はDoubleのみ対応。
- * - Stringは、utf8でencode/decodeする。
  */
 class MessagePack {
   static Future<List> packb(arg, {uint8:false}) {
@@ -122,41 +118,42 @@ class MessagePack {
           _byte64.setUint8(i, byte[_ridx++]);
         }
         return _byte64.getFloat64(0);
-      case int64Type://signed 64bit integer (0xd3 0x 0x 0x 0x 0x 0x 0x 0x)
+
+      case 0xd3://signed 64bit integer (0xd3 0x 0x 0x 0x 0x 0x 0x 0x)
         num += (byte[_ridx++]^0xff)<<56;
         num += (byte[_ridx++]^0xff)<<48;
         num += (byte[_ridx++]^0xff)<<40;
         num += (byte[_ridx++]^0xff)<<32;
         continue label32;
 label32:
-      case int32Type:
+      case 0xd2:
         num += (byte[_ridx++]^0xff)<<24;
         num += (byte[_ridx++]^0xff)<<16;
         continue label16;
 label16:
-      case int16Type:
+      case 0xd1:
         num += (byte[_ridx++]^0xff)<<8;
         continue label8;
 label8:
-      case int8Type:
+      case 0xd0:
         num += (byte[_ridx++]^0xff);
 
         num = (num + 1)*-1;
         return num;
-      case uint8Type://unsigned 8bit integer
+      case 0xcc://unsigned 8bit integer
         num += byte[_ridx++];
         return num;
-      case uint16Type://unsigned 16bit integer
+      case 0xcd://unsigned 16bit integer
         num += byte[_ridx++]<<8;
         num += byte[_ridx++];
         return num;
-      case uint32Type://unsigned 32bit integer
+      case 0xce://unsigned 32bit integer
         num += byte[_ridx++]<<24;
         num += byte[_ridx++]<<16;
         num += byte[_ridx++]<<8;
         num += byte[_ridx++];
         return num;
-      case uint64Type://unsigned 64bit integer
+      case 0xcf://unsigned 64bit integer
         num += byte[_ridx++]<<56;
         num += byte[_ridx++]<<48;
         num += byte[_ridx++]<<40;
@@ -166,7 +163,7 @@ label8:
         num += byte[_ridx++]<<8;
         num += byte[_ridx++];
         return num;
-      case raw32Type:// raw 32
+      case 0xdb:// raw 32
         size = _readByte(byte.skip(_ridx), 4);
         _ridx+=4;
         //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
@@ -174,19 +171,19 @@ label8:
         String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
-      case raw16Type:// raw 16
+      case 0xda:// raw 16
         size = _readByte(byte.skip(_ridx), 2);
         _ridx+=2;
         //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
         String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
-      case fixRawType:// fixraw
+      case 0xa0:// fixraw
         //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
         String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
-      case map32Type:// 0xdf: map32
+      case 0xdf:// 0xdf: map32
         size += byte[_ridx++]<<24;
         size += byte[_ridx++]<<16;
         size += byte[_ridx++]<<8;
@@ -197,7 +194,7 @@ label8:
           ret[key] = (_read(byte));
         }
         return ret;
-      case map16Type: //0xde: map16
+      case 0xde: //0xde: map16
         size += byte[_ridx++]<<8;
         size += byte[_ridx++];
 
@@ -207,14 +204,14 @@ label8:
           ret[key] = (_read(byte));
         }
         return ret;
-      case fixMapType: //0x80: map
+      case 0x80: //0x80: map
         Map ret = new Map();
         for (int i=0; i<size; i++) {
           var key = (_read(byte));
           ret[key] = (_read(byte));
         }
         return ret;
-    case array32Type:  // 0xdd: array32, 0xdc: array16, 0x90: array
+    case 0xdd:  // 0xdd: array32, 0xdc: array16, 0x90: array
       size += byte[_ridx++]<<24;
       size += byte[_ridx++]<<16;
       size += byte[_ridx++]<<8;
@@ -225,7 +222,7 @@ label8:
         ret[i] = (_read(byte));
       }
       return ret;
-    case array16Type:
+    case 0xdc:
       size += byte[_ridx++]<<8;
       size += byte[_ridx++];
 
@@ -234,18 +231,12 @@ label8:
         ret[i] = (_read(byte));
       }
       return ret;
-    case fixArrayType:
+    case 0x90:
       List ret = new List(size);
       for (int i=0; i<size; i++) {
         ret[i] = (_read(byte));
       }
       return ret;
-    case floatType:
-      //JavaやC/C++からの相互変換用。
-      for (int i=0; i<4; i++) {
-        _byte32.setUint8(i, byte[_ridx++]);
-      }
-      return _byte32.getFloat32(0);
     default:
       throw new MessageTypeException("${type} deserialization is not support, arg = ${type}");
     }
@@ -318,11 +309,7 @@ label8:
     if (d < -(1 << 5)) {
       if (d < -(1 << 15)) {
         if (d < -(1 << 31)) {
-          if (d < -(1<<63)) {
-            throw new ArgumentError("bigint serialization is not support, arg = ${d}");
-          } else {
-            _writeInt64(out, d);// signed 64
-          }
+          _writeInt64(out, d);// signed 64
         } else {
           _writeInt32(out, d);// signed 32
         }
@@ -345,10 +332,8 @@ label8:
       } else {
         if (d < (1 << 32)) {
           _writeUint32(out, d);// unsigned 32
-        } else if (d < ((1<<64))) {
-          _writeUint64(out, d);// unsigned 64
         } else {
-          throw new ArgumentError("bigint serialization is not support, arg = ${d}");
+          _writeUint64(out, d);// unsigned 64
         }
       }
     }
@@ -432,13 +417,6 @@ label8:
       _writeString(buff, arg);
     } else if (arg is List) {
       _writeList(buff, arg);
-      //todo scalarlist
-//      if (arg is Float64List) {
-//      } else if (arg is Float32List) {
-//      } else if (arg is Uint8List) {
-//      } else if (arg is Int32List) {
-//      } else if (arg is Int64List) {
-//      }
     } else if (arg is Map) {
       _writeMap(buff, arg);
     } else {
@@ -478,7 +456,6 @@ label8:
   static const int uint16Type = 0xcd;
   static const int uint8Type = 0xcc;
   static const int doubleType = 0xcb;
-  static const int floatType = 0xca;
   static const int trueType = 0xc3;
   static const int falseType = 0xc2;
   static const int nullType = 0xc0;

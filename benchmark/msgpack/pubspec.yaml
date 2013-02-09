@@ -1,0 +1,4 @@
+name: msgpack
+description: msgpack unittest
+dependencies:
+  unittest: any
