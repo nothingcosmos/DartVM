@@ -5,18 +5,17 @@ import 'dart:scalarlist';
 
 //C++で書いてDartVMに組み込みたいけど、
 //Clientで使うことも考慮し、まずはDartで実装。
+//どっかのタイミングでDart VMのsnapshotとの速度比較をしたい。
 //VMでしか使えないクラスは使わないように。。scalarlistってclientでも使えるよね？
-//Uint8Listを使う？普通のList<int>？
-//Uint8Arrayなどのarraybufferによる実装に書き直すべきかも？
 
-//sclarlistの場合、ByteArrayのviewを使ってbyte操作を行う。
-//Listを順にたどる場合、takeやskipを使ってviewを使ったほうがよいのか？
 //Streamやasync向けのAPIも用意すべきか。
-//Smi Mint BigInt向けに処理を分けたほうがいい？
+//デフォルトasyncで、Syncつけるのを義務付けるのもどうかと。。
 
 //内部のbuffをuint8listにしたいが、サイズを切り詰めるメソッドが存在しない。
 //Uint8Listを使っても、fileioやstreamの際にはList<int>に変換されるだろうか？？
 
+//fix doubleの変換をどうするか。
+//sclarlistのByteArrayのviewを使ってbyte操作を行う
 //fix minus値のdeserializeに失敗する。
 //2の補数表現からintのminus値に変換している。
 //fix マルチ文字に未対応
@@ -24,16 +23,16 @@ import 'dart:scalarlist';
 //fix pythonからmapを投げるとdecodeに失敗する。
 //packとunpackにおいて、size*2して、keyとvalueそれぞれのsizeをカウントしていた。
 
-//Float32Listをpackした際に、特殊なパスを追加して高速化してもいいけども。。
-
 /**
  * msgpackの対象は、dartのsnapshotに合わせる。
  *
  *    A primitive value (null, num, bool, double, String)
+ *
  *    A list or map whose elements are any of the above, including other lists and maps
  *
  * - 64bitで表現できないintは対象外。
- * - 浮動小数点はDoubleのみ対応。
+ * - 浮動小数点はdoubleのみ対応。
+ * - Float32はdecodeしてdoubleにキャスト(scalarlist getFloat32)する。
  * - Stringは、utf8でencode/decodeする。
  */
 class MessagePack {
@@ -122,7 +121,7 @@ class MessagePack {
           _byte64.setUint8(i, byte[_ridx++]);
         }
         return _byte64.getFloat64(0);
-      case int64Type://signed 64bit integer (0xd3 0x 0x 0x 0x 0x 0x 0x 0x)
+      case int64Type:
         num += (byte[_ridx++]^0xff)<<56;
         num += (byte[_ridx++]^0xff)<<48;
         num += (byte[_ridx++]^0xff)<<40;
@@ -143,97 +142,67 @@ label8:
 
         num = (num + 1)*-1;
         return num;
-      case uint8Type://unsigned 8bit integer
-        num += byte[_ridx++];
-        return num;
-      case uint16Type://unsigned 16bit integer
-        num += byte[_ridx++]<<8;
-        num += byte[_ridx++];
-        return num;
-      case uint32Type://unsigned 32bit integer
-        num += byte[_ridx++]<<24;
-        num += byte[_ridx++]<<16;
-        num += byte[_ridx++]<<8;
-        num += byte[_ridx++];
-        return num;
-      case uint64Type://unsigned 64bit integer
+      case uint64Type:
         num += byte[_ridx++]<<56;
         num += byte[_ridx++]<<48;
         num += byte[_ridx++]<<40;
         num += byte[_ridx++]<<32;
+        continue labelUint32;
+labelUint32:
+      case uint32Type:
         num += byte[_ridx++]<<24;
         num += byte[_ridx++]<<16;
+        continue labelUint16;
+labelUint16:
+      case uint16Type:
         num += byte[_ridx++]<<8;
+        continue labelUint8;
+labelUint8:
+      case uint8Type:
         num += byte[_ridx++];
         return num;
       case raw32Type:// raw 32
         size = _readByte(byte.skip(_ridx), 4);
         _ridx+=4;
+        continue labelFixRaw;
+      case raw16Type:// raw 16
+        size = _readByte(byte.skip(_ridx), 2);
+        _ridx+=2;
+        continue labelFixRaw;
+labelFixRaw:
+      case fixRawType:
         //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
         //ここでarrayのviewだけかえしたいんだけど。
         String ret = decodeUtf8(byte.getRange(_ridx, size));
         _ridx+=size;
         return ret;
-      case raw16Type:// raw 16
-        size = _readByte(byte.skip(_ridx), 2);
-        _ridx+=2;
-        //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
-        String ret = decodeUtf8(byte.getRange(_ridx, size));
-        _ridx+=size;
-        return ret;
-      case fixRawType:// fixraw
-        //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
-        String ret = decodeUtf8(byte.getRange(_ridx, size));
-        _ridx+=size;
-        return ret;
-      case map32Type:// 0xdf: map32
+      case map32Type:
         size += byte[_ridx++]<<24;
         size += byte[_ridx++]<<16;
+        continue labelMap16;
+labelMap16:
+      case map16Type:
         size += byte[_ridx++]<<8;
         size += byte[_ridx++];
+        continue labelFixMap;
+labelFixMap:
+      case fixMapType:
         Map ret = new Map();
         for (int i=0; i<size; i++) {
           var key = (_read(byte));
           ret[key] = (_read(byte));
         }
         return ret;
-      case map16Type: //0xde: map16
-        size += byte[_ridx++]<<8;
-        size += byte[_ridx++];
-
-        Map ret = new Map();
-        for (int i=0; i<size; i++) {
-          var key = (_read(byte));
-          ret[key] = (_read(byte));
-        }
-        return ret;
-      case fixMapType: //0x80: map
-        Map ret = new Map();
-        for (int i=0; i<size; i++) {
-          var key = (_read(byte));
-          ret[key] = (_read(byte));
-        }
-        return ret;
-    case array32Type:  // 0xdd: array32, 0xdc: array16, 0x90: array
+    case array32Type:
       size += byte[_ridx++]<<24;
       size += byte[_ridx++]<<16;
-      size += byte[_ridx++]<<8;
-      size += byte[_ridx++];
-
-      List ret = new List(size);
-      for (int i=0; i<size; i++) {
-        ret[i] = (_read(byte));
-      }
-      return ret;
+      continue labelArray16;
+labelArray16:
     case array16Type:
       size += byte[_ridx++]<<8;
       size += byte[_ridx++];
-
-      List ret = new List(size);
-      for (int i=0; i<size; i++) {
-        ret[i] = (_read(byte));
-      }
-      return ret;
+      continue labelFixArray;
+labelFixArray:
     case fixArrayType:
       List ret = new List(size);
       for (int i=0; i<size; i++) {
@@ -242,6 +211,7 @@ label8:
       return ret;
     case floatType:
       //JavaやC/C++からの相互変換用。
+      //未テスト
       for (int i=0; i<4; i++) {
         _byte32.setUint8(i, byte[_ridx++]);
       }
@@ -252,6 +222,7 @@ label8:
   }
 
   static _writeInt64(List<int> out, int d) {
+    //todo
     //setInt64 runtime/vm/object.cc:10403: error: unreachable code
     _byte64.setUint64(0, d);
     out.add(int64Type);
@@ -313,7 +284,7 @@ label8:
     out.add(uint8Type);
     out.add(d);
   }
-
+  //Dart VMの場合、内部のSmi Mint Bigint向けに特殊化されるような分岐のほうが速い？
   static _writeInt(List<int> out, int d) {
     if (d < -(1 << 5)) {
       if (d < -(1 << 15)) {
@@ -375,9 +346,9 @@ label8:
     return ret;
   }
   static _writeType(List<int> out,
-          int fixSize, // @param Number: fix size. 16 or 32
-          int size,    // @param Number: size
-          List<int> types) { // @param ByteArray: type formats. eg: [0x90, 0xdc, 0xdd]
+          int fixSize,
+          int size,
+          List<int> types) {
     if (size < fixSize) {
         out.add(types[0] + size);
         return 1;
