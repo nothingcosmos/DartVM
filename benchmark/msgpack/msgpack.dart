@@ -28,7 +28,8 @@ import 'dart:scalarlist';
  *
  *    A primitive value (null, num, bool, double, String)
  *
- *    A list or map whose elements are any of the above, including other lists and maps
+ *    A list or map whose elements are any of the above,
+ *    including other lists and maps
  *
  * - 64bitで表現できないintは対象外。
  * - 浮動小数点はdoubleのみ対応。
@@ -92,16 +93,16 @@ class MessagePack {
     int size = 0;
     var type = byte[_ridx++];
 
-    if (type >= negativeFixnumType) {         // Negative FixNum (111x xxxx) (-32 ~ -1)
+    if (type >= negativeFixnumType) {// Negative FixNum (111x xxxx) (-32 ~ -1)
         return type - 0x100;
     }
-    if (type < (128)) {          // Positive FixNum (0xxx xxxx) (0 ~ 127)
+    if (type < (128)) {              // Positive FixNum (0xxx xxxx) (0 ~ 127)
         return type;
     }
-    if (type < fixArrayType) {          // FixMap (1000 xxxx)
+    if (type < fixArrayType) {       // FixMap (1000 xxxx)
         size = type - fixMapType;
         type = fixMapType;
-    } else if (type < fixRawType) {   // FixArray (1001 xxxx)
+    } else if (type < fixRawType) { // FixArray (1001 xxxx)
         size = type - fixArrayType;
         type = fixArrayType;
     } else if (type < nullType) {   // FixRaw (101x xxxx)
@@ -217,13 +218,11 @@ labelFixArray:
       }
       return _byte32.getFloat32(0);
     default:
-      throw new MessageTypeException("${type} deserialization is not support, arg = ${type}");
+      throw new MessageTypeException("header is illegal, header = ${type}");
     }
   }
 
   static _writeInt64(List<int> out, int d) {
-    //todo
-    //setInt64 runtime/vm/object.cc:10403: error: unreachable code
     _byte64.setUint64(0, d);
     out.add(int64Type);
     out.add(_byte64.getUint8(7));
@@ -292,32 +291,32 @@ labelFixArray:
           if (d < -(1<<63)) {
             throw new ArgumentError("bigint serialization is not support, arg = ${d}");
           } else {
-            _writeInt64(out, d);// signed 64
+            _writeInt64(out, d);
           }
         } else {
-          _writeInt32(out, d);// signed 32
+          _writeInt32(out, d);
         }
       } else {
         if (d < -(1 << 7)) {
-          _writeInt16(out, d);// signed 64
+          _writeInt16(out, d);
         } else {
-          _writeInt8(out, d);// signed 8
+          _writeInt8(out, d);
         }
       }
     } else if (d < (1 << 7)) {
-      out.add(d);// fixnum
+      out.add(d);
     } else {
       if (d < (1 << 16)) {
         if (d < (1 << 8)) {
-          _writeUint8(out, d);// unsigned 8
+          _writeUint8(out, d);
         } else {
-          _writeUint16(out, d);// unsigned 16
+          _writeUint16(out, d);
         }
       } else {
         if (d < (1 << 32)) {
-          _writeUint32(out, d);// unsigned 32
+          _writeUint32(out, d);
         } else if (d < ((1<<64))) {
-          _writeUint64(out, d);// unsigned 64
+          _writeUint64(out, d);
         } else {
           throw new ArgumentError("bigint serialization is not support, arg = ${d}");
         }
