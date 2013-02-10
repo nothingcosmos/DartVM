@@ -3,6 +3,17 @@ import 'dart:utf';
 import 'dart:async';
 import 'dart:scalarlist';
 
+//C++で書いてDartVMに組み込みたいけど、
+//Clientで使うことも考慮し、まずはDartで実装。
+//どっかのタイミングでDart VMのsnapshotとの速度比較をしたい。
+//VMでしか使えないクラスは使わないように。。scalarlistってclientでも使えるよね？
+
+//Streamやasync向けのAPIも用意すべきか。
+//デフォルトasyncで、Syncつけるのを義務付けるのもどうかと。。
+
+//内部のbuffをuint8listにしたいが、サイズを切り詰めるメソッドが存在しない。
+//Uint8Listを使っても、fileioやstreamの際にはList<int>に変換されるだろうか？？
+
 //fix doubleの変換をどうするか。
 //sclarlistのByteArrayのviewを使ってbyte操作を行う
 //fix minus値のdeserializeに失敗する。
@@ -11,14 +22,6 @@ import 'dart:scalarlist';
 //文字列はutf8にencode/decode
 //fix pythonからmapを投げるとdecodeに失敗する。
 //packとunpackにおいて、size*2して、keyとvalueそれぞれのsizeをカウントしていた。
-
-//todo
-//writeのbuffを、List<int>からUint8Listにしたいが、Uint8Listは切り詰めできない。
-//また、RangeErrorを投げて親でbuffを2倍にして再確保すると、
-//RangeErrorを投げるコードがdeoptされて、再度Optimizeされなくなる。
-//Uint8Listを使っても、fileioやstreamの際にはList<int>に変換されるだろうか？？
-//Streamやasync向けのAPIも用意すべきか。
-//デフォルトasyncで、Syncつけるのを義務付けるのもどうかと。。
 
 /**
  * msgpackの対象は、dartのsnapshotに合わせる。
@@ -34,8 +37,6 @@ import 'dart:scalarlist';
  * - Stringは、utf8でencode/decodeする。
  */
 class MessagePack {
-  static String version = "0.1";
-
   static Future<List> packb(arg, {uint8:false}) {
     Completer c = new Completer();
     new Timer(0, (timer) => c.complete(packbSync(arg, uint8:uint8)));
@@ -248,9 +249,8 @@ labelFixArray:
     out.add(_byte32.getUint8(0));
   }
   static _writeInt8(List<int> out, int d) {
-    _byte16.setUint16(0, d);
     out.add(int8Type);
-    out.add(_byte16.getUint8(0));
+    out.add(d);
   }
   static _writeUint64(List<int> out, int d) {
     _byte64.setUint64(0, d);
@@ -280,9 +280,8 @@ labelFixArray:
     out.add(_byte16.getUint8(0));
   }
   static _writeUint8(List<int> out, int d) {
-    _byte16.setUint16(0, d);
     out.add(uint8Type);
-    out.add(_byte16.getUint8(0));
+    out.add(d);
   }
   //Dart VMの場合、内部のSmi Mint Bigint向けに特殊化されるような分岐のほうが速い？
   static _writeInt(List<int> out, int d) {
@@ -416,7 +415,7 @@ labelFixArray:
       throw new ArgumentError("${arg.runtimeType} type serialization is not support, arg = ${arg}");
     }
   }
-  static final ByteArray _byte8 = new Uint8List(1).asByteArray(0,1);
+
   static final ByteArray _byte16 = new Uint8List(2).asByteArray(0,2);
   static final ByteArray _byte32 = new Uint8List(4).asByteArray(0,4);
   static final ByteArray _byte64 = new Uint8List(8).asByteArray(0,8);
