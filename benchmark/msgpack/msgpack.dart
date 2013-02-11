@@ -4,21 +4,43 @@ import 'dart:async';
 import 'dart:scalarlist';
 
 //fix doubleの変換をどうするか。
-//sclarlistのByteArrayのviewを使ってbyte操作を行う
-//fix minus値のdeserializeに失敗する。
-//2の補数表現からintのminus値に変換している。
-//fix マルチ文字に未対応
-//文字列はutf8にencode/decode
+//  sclarlistのByteArrayのviewを使って操作を行う。
+//fix 負数のdeserializeに失敗する。
+//  2の補数表現から^と-1して、intの負数に変換する。
+//fix マルチバイト文字に未対応
+//  文字列はutf8にencode/decode
 //fix pythonからmapを投げるとdecodeに失敗する。
-//packとunpackにおいて、size*2して、keyとvalueそれぞれのsizeをカウントしていた。
+//  packとunpackにおいて、size*2して、keyとvalueそれぞれのsizeをカウントしていた。
+//fix -33～-128まで、utf8=falseのときに失敗する。
+//  ここだけList<int>にint型をそのままaddしていたため、符号拡張されていた。
+//  uint8へのキャストの代わりに、byte16に一回いれてgetUint8()で対応。
 
-//todo
-//writeのbuffを、List<int>からUint8Listにしたいが、Uint8Listは切り詰めできない。
-//また、RangeErrorを投げて親でbuffを2倍にして再確保すると、
-//RangeErrorを投げるコードがdeoptされて、再度Optimizeされなくなる。
-//Uint8Listを使っても、fileioやstreamの際にはList<int>に変換されるだろうか？？
-//Streamやasync向けのAPIも用意すべきか。
-//デフォルトasyncで、Syncつけるのを義務付けるのもどうかと。。
+//todo1
+//  writeのbuffを、List<int>からUint8Listにしたいが、Uint8Listは切り詰めできない。
+//  また、RangeErrorを投げて親でbuffを2倍にして再確保すると、
+//  RangeErrorを投げるコードがdeoptされて、再度Optimizeされなくなる。
+//todo2
+//  stream対応。
+//  Uint8Listを使っても、fileioやstreamの際にはList<int>に変換されるだろうか？？
+//  Streamやasync向けのAPIも用意すべきか。
+//  他APIではfeedと読んでいるけど、Dartの場合sinkを作って、そこにaddかな？
+//  stream対応する場合、他のAPIのようにpacker/unpackerを作るのがいいのかな？
+//todo3
+//  デフォルトasyncで、Syncつけるのを義務付けるのもどうかと。。
+//  名前を逆にするか、、
+//todo4
+//  scalarlistはdart2jsで使えないらしい。dartiumかServerでしか使えない。
+//  dart2jsで使うことを考慮する場合、dart:htmlのみで作成する必要があるだろう。
+//todo5
+//  文字列はfixRawにutf8で格納している。
+//  オプションでLatin-1をサポートするか？
+//todo6
+//  Dart VMの場合、内部のSmi Mint Bigint向けに特殊化された分岐のほうが速い？
+//todo7
+//  scalarlistごとに、高速化したWriterを用意すべきだろうか？
+//  あまり使わないか？
+//  外部ライブラリでuint8listに変換したものをrawに突っ込むことを想定してみよう。
+//  拡張する際に考えることか。
 
 /**
  * msgpackの対象は、dartのsnapshotに合わせる。
@@ -45,11 +67,11 @@ class MessagePack {
   /**
    * uint8:trueを指定すると、Uint8List型で返す。通常はList<int>を返す。
    *
-   * Uint8Listの利点は、省メモリ、かつList内部はGCの対象外になることである。
+   * Uint8Listの利点は、省メモリ 1/4、かつList内部はGCの対象外になることである。
    * そのため、OnMemoryで保存することを考える場合はこちらが最適である。
    *
-   * しかしUint8Listを固定バッファとして確保して、切り詰めて返すことができないため、
-   * List<int>からUint8Listにcopyして返すため遅い。
+   * しかしUint8Listを固定バッファとして確保して、切り詰めて返すことができない。
+   * List<int>からUint8Listにcopyして返すため、10%から20%程度遅い。
    */
   static List packbSync(arg, {uint8:false}) {
     var buff = new List();
@@ -173,7 +195,7 @@ labelFixRaw:
       case fixRawType:
         //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
         //ここでarrayのviewだけかえしたいんだけど。
-        String ret = decodeUtf8(byte.getRange(_ridx, size));
+        String ret = decodeUtf8(byte, _ridx, size);
         _ridx+=size;
         return ret;
       case map32Type:
@@ -284,7 +306,7 @@ labelFixArray:
     out.add(uint8Type);
     out.add(_byte16.getUint8(0));
   }
-  //Dart VMの場合、内部のSmi Mint Bigint向けに特殊化されるような分岐のほうが速い？
+
   static _writeInt(List<int> out, int d) {
     if (d < -(1 << 5)) {
       if (d < -(1 << 15)) {
@@ -328,7 +350,7 @@ labelFixArray:
   static _writeDouble(List<int> out, double d) {
     out.add(doubleType);
     _buff64.asByteArray().setFloat64(0, d);
-    out.addAll(_buff64);
+    for (int i=0; i<8; i++) out.add(_buff64[i]);
   }
   static _readByte(List byte, int size) {
     int ret = 0;
@@ -366,6 +388,8 @@ labelFixArray:
         return 5;
     }
   }
+  //encodeUtf8内部は非常に遅いし、getRange()が走っている。
+  //ここを改善できれば、2-3倍速くなるはず。
   static _writeString(List<int> out, String s) {
     List<int> enc = encodeUtf8(s);
     _writeType(out,32, enc.length, [fixRawType, raw16Type, raw32Type]);
