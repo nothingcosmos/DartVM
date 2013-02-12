@@ -63,7 +63,7 @@ import 'dart:scalarlist';
  * - Stringは、utf8でencode/decodeする。
  */
 class MessagePack {
-  static String version = "0.2";
+  static String version = "0.1";
 
   static Future<List> packb(arg, {uint8:false}) {
     Completer c = new Completer();
@@ -383,17 +383,15 @@ labelFixArray:
         return 1;
     } else if (size < 0x10000) { // 16
         out.add(types[1]);
-        _byte16.setUint16(0, size);
-        out.add(_byte16.getUint8(1));
-        out.add(_byte16.getUint8(0));
+        out.add(size >> 8);
+        out.add(size & 0xff);
         return 3;
     } else if (size < 0x100000000) { // 32
         out.add(types[2]);
-        _byte32.setUint32(0, size);
-        out.add(_byte32.getUint8(3));
-        out.add(_byte32.getUint8(2));
-        out.add(_byte32.getUint8(1));
-        out.add(_byte32.getUint8(0));
+        out.add(size >> 24);
+        out.add(size >> 16);
+        out.add(size >> 8);
+        out.add(size & 0xff);
         return 5;
     }
   }

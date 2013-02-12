@@ -3,14 +3,15 @@ import "msgpack.dart";
 import "dart:scalarlist";
 import "dart:async";
 
-pack(var a) {
-  var w = MessagePack.packbSync(a, uint8:true);
-  return MessagePack.unpackbSync(w);
+pack(var a, bool uint8) {
+  var w = MessagePack.packbSync(a, uint8:uint8);
+  var ret =  MessagePack.unpackbSync(w);
+  return ret;
 }
 
 testArgumentError(var val) {
   test('catch exception', () {
-    expect(() => pack(val),
+    expect(() => pack(val, false),
     //throwsArgumentError
     throwsA(new isInstanceOf<ArgumentError>())
     );
@@ -18,11 +19,13 @@ testArgumentError(var val) {
 }
 
 testSerializeDeserialize(var val) {
-  test('case ${val}', () => expect(pack(val), equals(val)));
+  test('case ${val}', () => expect(pack(val, false), equals(val)));
+  test('case ${val}', () => expect(pack(val, true), equals(val)));
 }
 
 testNoDump(String name, var val) {
-  test('case $name', () => expect(pack(val), equals(val)));
+  test('case $name', () => expect(pack(val, false), equals(val)));
+  test('case $name', () => expect(pack(val, true), equals(val)));
 }
 
 testPremitive() {
@@ -93,6 +96,7 @@ testPremitive() {
   testSerializeDeserialize("utf8でencode/decode");
   testSerializeDeserialize("");
   testSerializeDeserialize("0");
+
   });
 }
 
@@ -155,7 +159,6 @@ testList() {
     testNoDump("array 200 Float64List", float64list);
     testNoDump("array 300 Uint64List", uint64list);
     testNoDump("uint8 1<<18 Uint8List", uint8list);
-
   });
 }
 testError() {
@@ -164,23 +167,27 @@ testError() {
     testArgumentError((1<<64));
     testArgumentError(1<<100);
     testArgumentError((-1<<64)-1);
+    testArgumentError((-1<<64)+2);
+    testArgumentError((-1<<64)+1);
+    testArgumentError((-1<<64));
+    testArgumentError((-1<<63)-3);
+    testArgumentError((-1<<63)-2);
+    testArgumentError((-1<<63)-1);
   });
 }
 testToDO() {
-  //minus bigint
-  testSerializeDeserialize((-1<<64)+2);
-  testSerializeDeserialize((-1<<64)+1);
-  testSerializeDeserialize((-1<<64));
-  testSerializeDeserialize((-1<<63)-3);
-  testSerializeDeserialize((-1<<63)-2);
-  testSerializeDeserialize((-1<<63)-1);
 }
 main() {
-  testPremitive();
+  for (int i=0; i<1; i++) {
+    testPremitive();
+  }
   testJSON();
   testMap();
   testList();
   testError();
 
-  //testToDO();
+  testToDO();
 }
+
+//todo 以下のエラーが出るコードがどれだったか忘れた。。
+//setInt64 runtime/vm/object.cc:10403: error: unreachable code

@@ -1,5 +1,6 @@
 import "msgpack.dart";
 import "dart:async";
+import "dart:scalarlist";
 
 testList(var a, var b) {
   if (a.length != b.length) return false;
@@ -27,11 +28,12 @@ testVar(var a, var b) {
 
 test(var a) {
   testAsync(a);
-  testSync(a);
+  testSync(a, false);
+  testSync(a, true);
 }
 
-testSync(var a) {
-  var w = MessagePack.packbSync(a, uint8:true);
+testSync(var a, bool uint8) {
+  var w = MessagePack.packbSync(a, uint8:uint8);
   var ret = MessagePack.unpackbSync(w);
   if (testVar(a, ret)) return true;
   print("NG $a != $ret");
@@ -79,6 +81,7 @@ testOK() {
   test((1<<63)+1);
   test((1<<64)-1);
   //signed
+  test(-48);
   test(-100);
   test(-128);
   test(-1<<2);
@@ -86,6 +89,9 @@ testOK() {
   test((-1<<8)+1);
   test((-1<<8));
   test((-1<<8)-1);
+  test((-1<<10)+3);
+  test((-1<<10)+2);
+  test((-1<<10)+1);
   test((-1<<16)+1);
   test((-1<<16));
   test((-1<<16)-1);
@@ -104,7 +110,7 @@ testOK() {
   //error test((-1<<63)-1);
   test((-1<<63));
   //error test((-1<<64)+1);
-  test((-1<<64));
+  //test((-1<<64));
 
   //double
   test(0.0);
@@ -142,18 +148,25 @@ testOK() {
   var json001 = [{"key0":11, "key1":[], "key2":[0,1,2], "key3":0.1},
                  {}, 100, 0.1, true, false, null];
   //test(json001);
-  
+
   var json002 = {"key0":100, "key1":"ヴぁぅえ"};
   test(json002);
 }
+testNG() {
+  Uint8List uint8list = new Uint8List(1<<18);
+  for (int i=0; i<(1<<18); i++) uint8list[i] = i~/(128);
+  test(uint8list);
+}
 
 main() {
+  testNG();
+
   var mt = time(() {
     for (int i=0; i<1;i++) {
       testOK();
     }
   });
-  
+
   print("error = $error");
   print("time = $mt msec");
 }
