@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:scalarlist';
 
 double rand = -0.100;
 
@@ -20,12 +21,25 @@ void main() {
 //var drand2;// = new Math.Random();
 
 class Vec {
-  //double x, y, z;
-  double x, y, z, w;
+    //double x, y, z;
+  Float64List m = new Float64List(4);
+  set x(a) => m[0] = a;
+  set y(a) => m[1] = a;
+  set z(a) => m[2] = a;
+  set w(a) => m[3] = a;
+  get x => m[0];
+  get y => m[1];
+  get z => m[2];
+  get w => m[3];
 
+  //Vec(this.x, this.y, this.z);
+  Vec(a, b, c) {
+    this.x = a;
+    this.y = b;
+    this.z = c;
+  }
 
-  Vec(this.x, this.y, this.z);
-  Vec.copy(Vec v) {
+    Vec.copy(Vec v) {
         this.x = v.x;
         this.y = v.y;
         this.z = v.z;
