@@ -19,7 +19,7 @@ Future pack(var message) {
 
 packSync(var message) {
   var bin = MessagePack.packbSync(message);
-//  return MessagePack.unpackbSync(bin);
+  return MessagePack.unpackbSync(bin);
 }
 
 main() {
@@ -50,8 +50,6 @@ main() {
   }
   });
   print("sync time = $t ms, date = ${new DateTime.now()}");
-
-
 }
 
 

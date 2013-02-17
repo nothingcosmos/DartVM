@@ -31,25 +31,23 @@ main() {
                        "StringRaw": "roaw", "String16": "0123456789qwertyuiop@[]:;lkkjjhhggfdfdsdsaazxcvcvbnm,././fじこ"
                        };
 
-//  var t2 = time(() {
-//    List<Future> lf = new List();
-//    for (int i=0; i<10000; i++) {
-//      lf.add(pack(jsonPremitive));
-//    }
-//    Future.wait(lf).then((list) => print("finish, ${new DateTime.now()}"));
-//  });
-  for (int i=0; i<3000; i++) {
-    packSync(jsonPremitive);
-  }
+  var t2 = time(() {
+    List<Future> lf = new List();
+    for (int i=0; i<10000; i++) {
+      lf.add(pack(jsonPremitive));
+    }
+    Future.wait(lf).then((list) => print("finish, ${new DateTime.now()}"));
+  });
+//  for (int i=0; i<10000; i++) {
+//    packSync(jsonPremitive);
+//  }
 
   var t = time(() {
-  for (int i=0; i<100000; i++) {
+  for (int i=0; i<10000; i++) {
     packSync(jsonPremitive);
   }
   });
   print("sync time = $t ms, date = ${new DateTime.now()}");
-
-
 }
 
 

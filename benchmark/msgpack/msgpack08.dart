@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:scalarlist';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:math';
 
 //fix doubleの変換をどうするか。
 //  sclarlistのByteArrayのviewを使って操作を行う。
@@ -56,12 +55,12 @@ import 'dart:math';
 //  Mint型の遅延は、x64環境であれば解決する。64bitまでSmi型で表現できるため。
 //  x64環境である場合、dart版は2sec、python版が1sec、
 
-_packIsolate() {
+packIsolate() {
   port.receive((msg, replyTo) {
     replyTo.send(MessagePack.packbSync(msg));
   });
 }
-_unpackIsolate() {
+unpackIsolate() {
   port.receive((msg, replyTo) {
     replyTo.send(MessagePack.unpackbSync(msg));
   });
@@ -81,9 +80,9 @@ _unpackIsolate() {
  * - Stringは、utf8でencode/decodeする。
  */
 class MessagePack {
-  static const String version = "0.3";
-  static final SendPort _packPort = spawnFunction(_packIsolate);
-  static final SendPort _unpackPort = spawnFunction(_unpackIsolate);
+  static const String version = "0.2";
+  static final SendPort _packPort = spawnFunction(packIsolate);
+  static final SendPort _unpackPort = spawnFunction(unpackIsolate);
 
   static Future<List> pack(arg) {
     return _packPort.call(arg);
@@ -92,6 +91,12 @@ class MessagePack {
   static Future unpack(List byte) {
     return _unpackPort.call(byte);
   }
+
+//  static ListOutputStream pack(arg) {
+//    ListOutputStream ret = new ListOutputStream();
+//    _write(ret, arg);
+//    return ret;
+//  }
 
   /**
    * uint8:trueを指定すると、Uint8List型で返す。通常はList<int>を返す。
@@ -103,19 +108,20 @@ class MessagePack {
    * List<int>からUint8Listにcopyして返すため、10%から20%程度遅い。
    */
   static List packbSync(arg, {uint8:false}) {
-    if (uint8) {
-      ByteArrayOutput buff = new ByteArrayOutput();
-      _write(buff, arg);
-      List ret = buff.pack();
-      //debug
-      //buff.forEach((e) => print("write=${e},${e.toRadixString(16)}"));
-      return ret;
+    var buff = new List();
+    _write(buff, arg);
+
+    //debug
+    //buff.forEach((e) => print("write=${e},${e.toRadixString(16)}"));
+    //Streamとして使う場合、List<int>にする必要があるはず。。
+    if (!uint8) {
+      return buff;
     } else {
-      ListOutput buff = new ListOutput(new List());
-      _write(buff, arg);
-      List ret = buff.pack();
-      //debug
-      //ret.forEach((e) => print("write=${e},${e.toRadixString(16)}"));
+      int len = buff.length;
+      var ret = new Uint8List(len);
+      for (int i=0; i<len; i++) {
+        ret[i] = buff[i];
+      }
       return ret;
     }
   }
@@ -162,14 +168,9 @@ class MessagePack {
       case trueType:
         return true;
       case doubleType:
-        _byte64.setUint8(7, byte[_ridx++]);
-        _byte64.setUint8(6, byte[_ridx++]);
-        _byte64.setUint8(5, byte[_ridx++]);
-        _byte64.setUint8(4, byte[_ridx++]);
-        _byte64.setUint8(3, byte[_ridx++]);
-        _byte64.setUint8(2, byte[_ridx++]);
-        _byte64.setUint8(1, byte[_ridx++]);
-        _byte64.setUint8(0, byte[_ridx++]);
+        for (int i=0; i<8; i++) {
+          _byte64.setUint8(i, byte[_ridx++]);
+        }
         return _byte64.getFloat64(0);
       case int64Type:
         num += (byte[_ridx++]^0xff)<<56;
@@ -221,6 +222,8 @@ labelUint8:
         continue labelFixRaw;
 labelFixRaw:
       case fixRawType:
+        //String ret = new String.fromCharCodes(byte.getRange(_ridx, size));
+        //ここでarrayのviewだけかえしたいんだけど。
         String ret = decodeUtf8(byte, _ridx, size);
         _ridx+=size;
         return ret;
@@ -260,50 +263,112 @@ labelFixArray:
     case floatType:
       //JavaやC/C++からの相互変換用。
       //未テスト
-      _byte32.setUint8(3, byte[_ridx++]);
-      _byte32.setUint8(2, byte[_ridx++]);
-      _byte32.setUint8(1, byte[_ridx++]);
-      _byte32.setUint8(0, byte[_ridx++]);
+      for (int i=0; i<4; i++) {
+        _byte32.setUint8(i, byte[_ridx++]);
+      }
       return _byte32.getFloat32(0);
     default:
       throw new MessageTypeException("header is illegal, header = ${type}");
     }
   }
 
-  static _writeInt(Output out, int d) {
+  static _writeInt64(List<int> out, int d) {
+    _byte64.setUint64(0, d);
+    out.add(int64Type);
+    out.add(_byte64.getUint8(7));
+    out.add(_byte64.getUint8(6));
+    out.add(_byte64.getUint8(5));
+    out.add(_byte64.getUint8(4));
+    out.add(_byte64.getUint8(3));
+    out.add(_byte64.getUint8(2));
+    out.add(_byte64.getUint8(1));
+    out.add(_byte64.getUint8(0));
+  }
+  static _writeInt32(List<int> out, int d) {
+    _byte32.setInt32(0, d);
+    out.add(int32Type);
+    out.add(_byte32.getUint8(3));
+    out.add(_byte32.getUint8(2));
+    out.add(_byte32.getUint8(1));
+    out.add(_byte32.getUint8(0));
+  }
+  static _writeInt16(List<int> out, int d) {
+    _byte32.setInt16(0, d);
+    out.add(int16Type);
+    out.add(_byte32.getUint8(1));
+    out.add(_byte32.getUint8(0));
+  }
+  static _writeInt8(List<int> out, int d) {
+    _byte16.setUint16(0, d);
+    out.add(int8Type);
+    out.add(_byte16.getUint8(0));
+  }
+  static _writeUint64(List<int> out, int d) {
+    _byte64.setUint64(0, d);
+    out.add(uint64Type);
+    out.add(_byte64.getUint8(7));
+    out.add(_byte64.getUint8(6));
+    out.add(_byte64.getUint8(5));
+    out.add(_byte64.getUint8(4));
+    out.add(_byte64.getUint8(3));
+    out.add(_byte64.getUint8(2));
+    out.add(_byte64.getUint8(1));
+    out.add(_byte64.getUint8(0));
+  }
+  static _writeUint32(List<int> out, int d) {
+    _byte32.setUint32(0, d);
+    out.add(uint32Type);
+    out.add(_byte32.getUint8(3));
+    out.add(_byte32.getUint8(2));
+    out.add(_byte32.getUint8(1));
+    out.add(_byte32.getUint8(0));
+
+  }
+  static _writeUint16(List<int> out, int d) {
+    _byte16.setUint16(0, d);
+    out.add(uint16Type);
+    out.add(_byte16.getUint8(1));
+    out.add(_byte16.getUint8(0));
+  }
+  static _writeUint8(List<int> out, int d) {
+    _byte16.setUint16(0, d);
+    out.add(uint8Type);
+    out.add(_byte16.getUint8(0));
+  }
+
+  static _writeInt(List<int> out, int d) {
     if (d < -(1 << 5)) {
       if (d < -(1 << 15)) {
         if (d < -(1 << 31)) {
           if (d < -(1<<63)) {
             throw new ArgumentError("bigint serialization is not support, arg = ${d}");
           } else {
-            out.writeByteAndUint64(int64Type, d);
-
+            _writeInt64(out, d);
           }
         } else {
-          out.writeByteAndUint32(int32Type, d);
+          _writeInt32(out, d);
         }
       } else {
         if (d < -(1 << 7)) {
-          out.writeByteAndUint16(int16Type, d);
+          _writeInt16(out, d);
         } else {
-          out.writeByteAndUint8(int8Type, d);
+          _writeInt8(out, d);
         }
       }
     } else if (d < (1 << 7)) {
-      out.writeUint8(d);
+      out.add(d);
     } else {
       if (d < (1 << 16)) {
         if (d < (1 << 8)) {
-          out.writeByteAndUint8(uint8Type, d);
+          _writeUint8(out, d);
         } else {
-          out.writeByteAndUint16(uint16Type, d);
+          _writeUint16(out, d);
         }
       } else {
         if (d < (1 << 32)) {
-          out.writeByteAndUint32(uint32Type, d);
+          _writeUint32(out, d);
         } else if (d < ((1<<64))) {
-          out.writeByteAndUint64(uint64Type, d);
+          _writeUint64(out, d);
         } else {
           throw new ArgumentError("bigint serialization is not support, arg = ${d}");
         }
@@ -311,6 +376,11 @@ labelFixArray:
     }
   }
 
+  static _writeDouble(List<int> out, double d) {
+    out.add(doubleType);
+    _buff64.asByteArray().setFloat64(0, d);
+    for (int i=0; i<8; i++) out.add(_buff64[i]);
+  }
   static _readByte(List byte, int size) {
     int ret = 0;
     if (size == 4) {
@@ -326,30 +396,38 @@ labelFixArray:
     }
     return ret;
   }
-  static _writeType(Output out,
+  static _writeType(List<int> out,
           int fixSize,
           int size,
           List<int> types) {
     if (size < fixSize) {
-      out.writeUint8(types[0] + size);
-      return 1;
+        out.add(types[0] + size);
+        return 1;
     } else if (size < 0x10000) { // 16
-      out.writeByteAndUint16(types[1], size);
-      return 3;
+        out.add(types[1]);
+        _byte16.setUint16(0, size);
+        out.add(_byte16.getUint8(1));
+        out.add(_byte16.getUint8(0));
+        return 3;
     } else if (size < 0x100000000) { // 32
-      out.writeByteAndUint32(types[2], size);
-      return 5;
+        out.add(types[2]);
+        _byte32.setUint32(0, size);
+        out.add(_byte32.getUint8(3));
+        out.add(_byte32.getUint8(2));
+        out.add(_byte32.getUint8(1));
+        out.add(_byte32.getUint8(0));
+        return 5;
     }
   }
   //encodeUtf8内部は非常に遅いし、getRange()が走っている。
-  //libを展開してgetRange()を除去できればStringは2-3倍速くなるはず。
-  static _writeString(Output out, String s) {
+  //ここを改善できれば、2-3倍速くなるはず。
+  static _writeString(List<int> out, String s) {
     List<int> enc = encodeUtf8(s);
-    _writeType(out, 32, enc.length, [fixRawType, raw16Type, raw32Type]);
-    out.writeList(enc);
+    _writeType(out,32, enc.length, [fixRawType, raw16Type, raw32Type]);
+    out.addAll(enc);
   }
 
-  static _writeMap(Output out, Map m) {
+  static _writeMap(List<int> out, Map m) {
     int size = m.length;
     int index = _writeType(out, 16, size, [fixMapType, map16Type, map32Type]);
     for (var key in m.keys) {
@@ -358,7 +436,7 @@ labelFixArray:
     }
   }
 
-  static _writeList(Output out, List m) {
+  static _writeList(List<int> out, List m) {
     int size = m.length;
     int index = _writeType(out, 16, size, [fixArrayType, array16Type, array32Type]);
     for (int i=0; i<m.length; i++) {
@@ -366,16 +444,16 @@ labelFixArray:
     }
   }
 
-  static _write(Output buff, arg) {
+  static _write(List buff, arg) {
     if (arg == null) {
-        buff.writeUint8(nullType);
+        buff.add(nullType);
     } else if (arg is bool) {
-      if (arg == false) buff.writeUint8(falseType);
-      else buff.writeUint8(trueType);
+      if (arg == false) buff.add(falseType);
+      else buff.add(trueType);
     } else if (arg is int) {
       _writeInt(buff, arg);
     } else if (arg is double) {
-      buff.writeByteAndDouble(doubleType, arg);
+      _writeDouble(buff, arg);
     } else if (arg is String) {
       _writeString(buff, arg);
     } else if (arg is List) {
@@ -393,9 +471,14 @@ labelFixArray:
       throw new ArgumentError("${arg.runtimeType} type serialization is not support, arg = ${arg}");
     }
   }
-
+  static final ByteArray _byte8 = new Uint8List(1).asByteArray(0,1);
+  static final ByteArray _byte16 = new Uint8List(2).asByteArray(0,2);
   static final ByteArray _byte32 = new Uint8List(4).asByteArray(0,4);
   static final ByteArray _byte64 = new Uint8List(8).asByteArray(0,8);
+  static final Uint8List _buff32 = new Uint8List(4);
+  static final Uint8List _buff64 = new Uint8List(8);
+  static ByteArray _buff32View() => _buff32.asByteArray(0,4);
+  static ByteArray _buff64View() => _buff64.asByteArray(0,8);
 
   static const _max_smi = (1<<31)-1;
   static const _min_smi = (-1<<31);
@@ -445,247 +528,4 @@ class MessageTypeException implements Exception {
   String toString() => "MessageTypeException: $message";
   final String message;
 }
-
-abstract class Output {
-  writeUint8(int d);
-  writeUint16(int d);
-  writeUint32(int d);
-  writeUint64(int d);
-  writeDouble(double d);
-  writeByteAndUint8(int b, int d);
-  writeByteAndUint16(int b, int d);
-  writeByteAndUint32(int b, int d);
-  writeByteAndUint64(int b, int d);
-  writeByteAndDouble(int b, double d);
-  writeList(List d);
-}
-
-
-class ByteArrayOutput implements Output {
-  ByteArrayOutput({int size:1024}) {
-    buffer_size = size;
-    buffer = new Uint8List(size);
-  }
-  int buffer_size;
-  int idx = 0;
-  Uint8List buffer;
-  final ByteArray _byte8 = new Uint8List(1).asByteArray(0,1);
-  final ByteArray _byte16 = new Uint8List(2).asByteArray(0,2);
-  final ByteArray _byte32 = new Uint8List(4).asByteArray(0,4);
-  final ByteArray _byte64 = new Uint8List(8).asByteArray(0,8);
-
-  _reserve(int len) {
-    if (idx + len > buffer_size) {
-      _resize(buffer_size*2);
-    }
-  }
-
-  _resize(int len) {
-    var old_buff = buffer;
-    var old_size = buffer_size;
-    buffer_size = len;
-    buffer = new Uint8List(len);
-
-    //ここは高速化できそう。
-    int size = min(len, old_size);
-    for (int i=0; i< size; i++) {
-      buffer[i] = old_buff[i];
-    }
-    return buffer;
-  }
-  Uint8List pack() {
-    if (idx == buffer.length) {
-      return buffer;
-    }
-    return _resize(idx);
-  }
-
-  writeUint8(int d) {
-    int offset = 1;
-    _reserve(offset);
-    buffer[idx+0] = (d)&0xff;
-    idx+=offset;
-  }
-  writeUint16(int d) {
-    int offset = 2;
-    _reserve(offset);
-    buffer[idx+0] = (d>>8)&0xff;
-    buffer[idx+1] = (d)&0xff;
-    idx+=offset;
-  }
-  writeUint32(int d) {
-    int offset = 4;
-    _reserve(offset);
-    buffer[idx+0] = (d>>24)&0xff;
-    buffer[idx+1] = (d>>16)&0xff;
-    buffer[idx+2] = (d>>8)&0xff;
-    buffer[idx+3] = (d)&0xff;
-    idx+=offset;
-  }
-  writeUint64(int d) {
-    int offset = 8;
-    _reserve(offset);
-    buffer[idx+0] = (d>>56)&0xff;
-    buffer[idx+1] = (d>>48)&0xff;
-    buffer[idx+2] = (d>>40)&0xff;
-    buffer[idx+3] = (d>>32)&0xff;
-    buffer[idx+4] = (d>>24)&0xff;
-    buffer[idx+5] = (d>>16)&0xff;
-    buffer[idx+6] = (d>>8)&0xff;
-    buffer[idx+7] = (d)&0xff;
-    idx+=offset;
-  }
-  writeDouble(double d) {
-    int offset = 8;
-    _reserve(offset);
-    _byte64.setFloat64(0, d);
-    buffer[idx++] = _byte64.getUint8(7);
-    buffer[idx++] = _byte64.getUint8(6);
-    buffer[idx++] = _byte64.getUint8(5);
-    buffer[idx++] = _byte64.getUint8(4);
-    buffer[idx++] = _byte64.getUint8(3);
-    buffer[idx++] = _byte64.getUint8(2);
-    buffer[idx++] = _byte64.getUint8(1);
-    buffer[idx++] = _byte64.getUint8(0);
-  }
-  writeList(List d) {
-    int offset = d.length;
-    _reserve(offset);
-    d.forEach((int e) => buffer[idx++] = e);
-  }
-
-  writeByteAndUint8(int b, int d) {
-    int offset = 2;
-    _reserve(offset);
-    buffer[idx+0] = b;
-    buffer[idx+1] = (d)&0xff;
-    idx+=offset;
-  }
-  writeByteAndUint16(int b, int d) {
-    int offset = 3;
-    _reserve(offset);
-    buffer[idx+0] = b;
-    buffer[idx+1] = (d>>8)&0xff;
-    buffer[idx+2] = (d)&0xff;
-    idx+=offset;
-  }
-  writeByteAndUint32(int b, int d) {
-    int offset = 5;
-    _reserve(offset);
-    buffer[idx+0] = b;
-    buffer[idx+1] = (d>>24)&0xff;
-    buffer[idx+2] = (d>>16)&0xff;
-    buffer[idx+3] = (d>>8)&0xff;
-    buffer[idx+4] = (d)&0xff;
-    idx+=offset;
-  }
-  writeByteAndUint64(int b, int d) {
-    int offset = 9;
-    _reserve(offset);
-    buffer[idx+0] = b;
-    buffer[idx+1] = (d>>56)&0xff;
-    buffer[idx+2] = (d>>48)&0xff;
-    buffer[idx+3] = (d>>40)&0xff;
-    buffer[idx+4] = (d>>32)&0xff;
-    buffer[idx+5] = (d>>24)&0xff;
-    buffer[idx+6] = (d>>16)&0xff;
-    buffer[idx+7] = (d>>8)&0xff;
-    buffer[idx+8] = (d)&0xff;
-    idx+=offset;
-  }
-  writeByteAndDouble(int b, double d) {
-    int offset = 9;
-    _reserve(offset);
-    buffer[idx++] = b;
-    _byte64.setFloat64(0, d);
-    buffer[idx++] = _byte64.getUint8(7);
-    buffer[idx++] = _byte64.getUint8(6);
-    buffer[idx++] = _byte64.getUint8(5);
-    buffer[idx++] = _byte64.getUint8(4);
-    buffer[idx++] = _byte64.getUint8(3);
-    buffer[idx++] = _byte64.getUint8(2);
-    buffer[idx++] = _byte64.getUint8(1);
-    buffer[idx++] = _byte64.getUint8(0);
-  }
-}
-
-class ListOutput implements Output {
-  ListOutput(List buff) {
-    buffer = buff;
-  }
-  List buffer;
-  final ByteArray _byte8 = new Uint8List(1).asByteArray(0,1);
-  final ByteArray _byte16 = new Uint8List(2).asByteArray(0,2);
-  final ByteArray _byte32 = new Uint8List(4).asByteArray(0,4);
-  final ByteArray _byte64 = new Uint8List(8).asByteArray(0,8);
-
-  List pack() {
-    return buffer;
-  }
-
-  writeUint64(int d) {
-    _byte64.setUint64(0, d);
-    buffer.add(_byte64.getUint8(7));
-    buffer.add(_byte64.getUint8(6));
-    buffer.add(_byte64.getUint8(5));
-    buffer.add(_byte64.getUint8(4));
-    buffer.add(_byte64.getUint8(3));
-    buffer.add(_byte64.getUint8(2));
-    buffer.add(_byte64.getUint8(1));
-    buffer.add(_byte64.getUint8(0));
-  }
-  writeUint32(int d) {
-    _byte32.setUint32(0, d);
-    buffer.add(_byte32.getUint8(3));
-    buffer.add(_byte32.getUint8(2));
-    buffer.add(_byte32.getUint8(1));
-    buffer.add(_byte32.getUint8(0));
-  }
-  writeUint16(int d) {
-    _byte16.setUint16(0, d);
-    buffer.add(_byte16.getUint8(1));
-    buffer.add(_byte16.getUint8(0));
-  }
-  writeUint8(int d) {
-    _byte16.setUint16(0, d);
-    buffer.add(_byte16.getUint8(0));
-  }
-
-  writeDouble(double d) {
-    _byte64.setFloat64(0, d);
-    buffer.add(_byte64.getUint8(7));
-    buffer.add(_byte64.getUint8(6));
-    buffer.add(_byte64.getUint8(5));
-    buffer.add(_byte64.getUint8(4));
-    buffer.add(_byte64.getUint8(3));
-    buffer.add(_byte64.getUint8(2));
-    buffer.add(_byte64.getUint8(1));
-    buffer.add(_byte64.getUint8(0));
-  }
-  writeList(List d) {
-    buffer.addAll(d);
-  }
-  writeByteAndUint8(int b, int d) {
-    buffer.add(b);
-    writeUint8(d);
-  }
-  writeByteAndUint16(int b, int d) {
-    buffer.add(b);
-    writeUint16(d);
-  }
-  writeByteAndUint32(int b, int d) {
-    buffer.add(b);
-    writeUint32(d);
-  }
-  writeByteAndUint64(int b, int d) {
-    buffer.add(b);
-    writeUint64(d);
-  }
-  writeByteAndDouble(int b, double d) {
-    buffer.add(b);
-    writeDouble(d);
-  }
-}
-
-typedef List Callback(List b, int len);
 

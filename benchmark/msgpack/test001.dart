@@ -27,7 +27,7 @@ testVar(var a, var b) {
 }
 
 test(var a) {
-  testAsync(a);
+  //testAsync(a);
   testSync(a, false);
   testSync(a, true);
 }
@@ -42,9 +42,9 @@ testSync(var a, bool uint8) {
 }
 
 testAsync(var a) {
-  var w = MessagePack.packb(a, uint8:true);
+  var w = MessagePack.pack(a);
   w.then((wval) {
-    var ret = MessagePack.unpackb(wval);
+    var ret = MessagePack.unpack(wval);
     ret.then((d) {
       if (testVar(a, d)) return true;
       print("NG $a != $ret");
@@ -107,10 +107,10 @@ testOK() {
   test((-1<<56));
   test(-(1<<56));
   test((-1<<63)+1);
-  //error test((-1<<63)-1);
   test((-1<<63));
+  //error test((-1<<63)-1);
   //error test((-1<<64)+1);
-  //test((-1<<64));
+  //error test((-1<<64));
 
   //double
   test(0.0);
@@ -147,19 +147,28 @@ testOK() {
   //json
   var json001 = [{"key0":11, "key1":[], "key2":[0,1,2], "key3":0.1},
                  {}, 100, 0.1, true, false, null];
-  //test(json001);
+  test(json001);
 
   var json002 = {"key0":100, "key1":"ヴぁぅえ"};
   test(json002);
+
+  var jsonPremitive = {"null":null, "true":true, "false":false, "fixnum-":-20, "fixnum+":100,
+                       "uint8": 200, "uint16": 1025, "uint32": (1<<24)+111, "uint64": (1<<48)-200,
+                       "int8": 200, "int16":-2000, "int32": (-1<<26) +222, "int64": (-1<<56)+333,
+                       "double+": +0.0000002, "double-": -12021.414134,
+                       "StringRaw": "roaw", "String16": "0123456789qwertyuiop@[]:;lkkjjhhggfdfdsdsaazxcvcvbnm,././fじこ"
+                       };
+  test(jsonPremitive);
 }
-testNG() {
+
+testFix5() {
   Uint8List uint8list = new Uint8List(1<<18);
   for (int i=0; i<(1<<18); i++) uint8list[i] = i~/(128);
   test(uint8list);
 }
 
 main() {
-  testNG();
+  testFix5();
 
   var mt = time(() {
     for (int i=0; i<1;i++) {
