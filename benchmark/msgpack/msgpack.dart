@@ -212,11 +212,11 @@ labelUint8:
         num += byte[_ridx++];
         return num;
       case raw32Type:// raw 32
-        size = _readByte(byte.skip(_ridx), 4);
+        size = _readByte(byte, _ridx, 4);
         _ridx+=4;
         continue labelFixRaw;
       case raw16Type:// raw 16
-        size = _readByte(byte.skip(_ridx), 2);
+        size = _readByte(byte, _ridx, 2);
         _ridx+=2;
         continue labelFixRaw;
 labelFixRaw:
@@ -311,18 +311,18 @@ labelFixArray:
     }
   }
 
-  static _readByte(List byte, int size) {
+  static _readByte(List byte, int base, int size) {
     int ret = 0;
     if (size == 4) {
-      ret += byte[0] << 24;
-      ret += byte[1] << 16;
-      ret += byte[2] << 8;
-      ret += byte[3];
+      ret += byte[base] << 24;
+      ret += byte[base+1] << 16;
+      ret += byte[base+2] << 8;
+      ret += byte[base+3];
     } else if (size == 2) {
-      ret += byte[0] << 8;
-      ret += byte[1];
+      ret += byte[base] << 8;
+      ret += byte[base+1];
     } else {
-      ret += byte[0];
+      ret += byte[base];
     }
     return ret;
   }
@@ -348,6 +348,14 @@ labelFixArray:
     _writeType(out, 32, enc.length, [fixRawType, raw16Type, raw32Type]);
     out.writeList(enc);
   }
+
+  static _writeString2(Output out, String s) {
+    //sからlengthを先に計算できるんだっけ？
+    List<int> enc = encodeUtf8(s);
+    _writeType(out, 32, enc.length, [fixRawType, raw16Type, raw32Type]);
+    out.writeList(enc);
+  }
+
 
   static _writeMap(Output out, Map m) {
     int size = m.length;
@@ -494,10 +502,9 @@ class ByteArrayOutput implements Output {
     return buffer;
   }
   Uint8List pack() {
-    if (idx == buffer.length) {
-      return buffer;
-    }
-    return _resize(idx);
+    return new Uint8List.view(buffer.asByteArray(), 0, idx);
+    //return List<int> //return buffer.getRange(0, idx);
+    //return _resize(idx);
   }
 
   writeUint8(int d) {
