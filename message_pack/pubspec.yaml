@@ -1,0 +1,7 @@
+name: message_pack
+version: 0.0.1
+author: nothingcosmos
+homepage: https://github.com/nothingcosmos
+documentation: https://github.com/nothingcosmos
+dependencies:
+  unittest: any
