@@ -60,21 +60,32 @@ Dart VM index
 
 候補
 
-- Dart VM src overview
-- Runtime1 isolate
-- Runtime2 memory layout
-- Runtime3 hotcode & unoptimized path
-- Runtime4 Deoptimization & Stackmaps
-- Dart VMのGC Mark&Sweep
-- Dart VMのGC Root Reference & Handles
-- Dart VMのGC Extended, Weak, Peer, External, old->new pointers
-- OptionalTypes1 (dynamic)
-- OptionalTypes2 (generics)
+- 01 Dart VM src overview
+- 02 Isolate and Startup
+- 03 Memory layout
+- 04 Message passing & Snapshot
+- 05 Dart VM Native extension
+
+- 06 Dart VM Performance
+- 07 Dart Numeric Computation
+  http://news.dartlang.org/2013/06/faster-is-better-new-article-on-numeric.html
+
+- 08 Dart VMのGC Mark&Sweep
+- 09 OptionalTypes1 (dynamic)
+- 10 OptionalTypes2 (generics)
+
+- 11 InlineCaching & Stubs
+- 12 FlowGraphCompiler6 inlining
+
+- 13 Dart VMのGC Root Reference & Handles
+- 14 Dart VMのGC Extended, Weak, Peer, External, old->new pointers
+
+- Deoptimization Framework
+
 - FlowGraphCompiler3 type inference
 - FlowGraphCompiler4 boxing-unboxing & representation
-- FlowGraphCompiler6 inlining
 - FlowGraphCompiler7 register allocation
-- Dart VM Native extension
-- Message passing & Snapshot
-- InlineCaching & Stubs
+
 - intrinsics3 list, map
+- Runtime3 hotcode & unoptimized path
+- Runtime4 Deoptimization & Stackmaps

@@ -1,99 +1,6 @@
 Deoptimization
 ###############################################################################
 
-OptimizedIR ::
-
-  After Optimizations:
-  ==== file:///home/elise/language/dart/work/adven/deopt.dart_::_fibo
-    0: B0[graph] {
-        v0 <- Constant:29(#null)
-        v1 <- Parameter:30(0) {PT: dynamic} {PCid: dynamic}
-  }
-    2: B1[target] ParallelMove eax <- S-1
-    4:     CheckStackOverflow:2()
-    6:     v2 <- Constant:4(#2) {PT: _Smi@0x36924d72} {PCid: _Smi@0x36924d72} [2, 2]
-    8:     CheckSmi:5(v1) env={ v1 [eax], v1 [eax], v2 [C] }
-   10:     Branch if RelationalOp:5(<, v1, v2 IC[1: _Smi@0x36924d72, _Smi@0x36924d72 #873]) goto (2, 3)
-   12: B2[target]
-   13:     ParallelMove eax <- eax
-   14:     Return:8(v1)
-   16: B3[target]
-   18:     v3 <- Constant:11(#1) {PT: _Smi@0x36924d72} {PCid: _Smi@0x36924d72} [1, 1]
-   20:     ParallelMove ecx <- eax
-   20:     v4 <- BinarySmiOp:13(-, v1, v3) {PT: _Smi@0x36924d72} {PCid: _Smi@0x36924d72} [1, 1073741822] -o
-   22:     PushArgument:14(v4) {PCid: dynamic}
-   24:     v5 <- StaticCall:15(fibo v4) {PT: dynamic} {PCid: dynamic} env={ v1 [S-1], a0 }
-   25:     ParallelMove eax <- eax
-   26:     ParallelMove ecx <- S-1, S+0 <- eax
-   26:     v7 <- BinarySmiOp:21(-, v1, v2) {PT: _Smi@0x36924d72} {PCid: _Smi@0x36924d72} [0, 1073741821] -o
-   28:     PushArgument:22(v7) {PCid: dynamic}
-   30:     v8 <- StaticCall:23(fibo v7) {PT: dynamic} {PCid: dynamic} env={ v1 [S-1], v5 [S+0], a0 }
-   31:     ParallelMove ecx <- eax, eax <- S+0
-   32:     CheckSmi:25(v5) env={ v1 [S-1], v5 [eax], v8 [ecx] }
-   34:     CheckSmi:25(v8) env={ v1 [S-1], v5 [eax], v8 [ecx] }
-   36:     ParallelMove edx <- eax
-   36:     v9 <- BinarySmiOp:25(+, v5, v8) {PT: _Smi@0x36924d72} {PCid: _Smi@0x36924d72} [-inf, +inf] +o env={ v1 [S-1], v5 [eax], v8 [ecx] }
-   37:     ParallelMove eax <- edx
-   38:     Return:26(v9)
-
-OptimizedCode ::
-  
-  Code for optimized function 'file:///home/elise/language/dart/work/adven/deopt.dart_::_fibo' {
-          ;; Enter frame
-  0xb2f08468    55                     push ebp
-  0xb2f08469    89e5                   mov ebp,esp
-  0xb2f0846b    e800000000             call 0xb2f08470
-  0xb2f08470    83ec04                 sub esp,0x4
-          ;; B0
-          ;; B1
-  0xb2f08473    8b4508                 mov eax,[ebp+0x8]
-          ;; CheckStackOverflow:2()
-  0xb2f08476    3b25743e630a           cmp esp,[0xa633e74]
-  0xb2f0847c    0f8668000000           jna 0xb2f084ea
-          ;; v2 <- Constant:4(#2) {PT: _Smi@0x36924d72} {PCid: _Smi@0x36924d72} [2, 2]
-          ;; CheckSmi:5(v1)
-  0xb2f08482    a801                   test al,0x1
-  0xb2f08484    0f8573000000           jnz 0xb2f084fd    // goto deoptimize
-          ;; Branch if RelationalOp:5(<, v1, v2 IC[1: _Smi@0x36924d72, _Smi@0x36924d72 #873]) goto (2, 3)
-
-checksmiの、test al,0x1, jnzでdeoptimizeにとぶはず。
-
-runtime flame ::
-
-          ;; CheckStackOverflowSlowPath
-  0xb2f084ea    50                     push eax
-  0xb2f084eb    b940bc0a08             mov ecx,0x80abc40
-  0xb2f084f0    ba00000000             mov edx,0
-  0xb2f084f5    e82e7b3f02             call 0xb5300028  [stub: CallToRuntime]
-  0xb2f084fa    58                     pop eax
-  0xb2f084fb    eb85                   jmp 0xb2f08482
-          ;; Deopt stub for id 5
-  0xb2f084fd    e8767f3f02             call 0xb5300478  [stub: Deoptimize]
-          ;; Deopt stub for id 25
-  0xb2f08502    e8717f3f02             call 0xb5300478  [stub: Deoptimize]
-          ;; Deopt stub for id 25
-  0xb2f08507    e86c7f3f02             call 0xb5300478  [stub: Deoptimize]
-          ;; Deopt stub for id 25
-  0xb2f0850c    e8677f3f02             call 0xb5300478  [stub: Deoptimize]
-  0xb2f08511    e9227f3f02             jmp 0xb5300438  [stub: FixCallersTarget]
-  0xb2f08516    e9fd7f3f02             jmp 0xb5300518  [stub: DeoptimizeLazy]
-  }
-
-deopt id 5経由でdeoptimiに飛ぶと。
-
-trace ::
-
-  Deoptimizing (reason 17 'CheckSmi') at pc 0xb2f08502 'file:///home/elise/language/dart/work/adven/deopt.dart_::_fibo' (count 0)
-  *0. [0xbffd8adc] 0x0000b2f0836a [ret bef oti:0(5)]
-  *1. [0xbffd8ae0] 0x000000000004 [const oti:1]
-  *2. [0xbffd8ae4] 0x0000b2fa0869 [eax]
-  *3. [0xbffd8ae8] 0x0000b2f08350 [pcmark oti:0]
-  *4. [0xbffd8aec] 0x0000bffd8afc [callerfp]
-  *5. [0xbffd8af0] 0x0000b2f082ef [callerpc]
-  *6. [0xbffd8af4] 0x0000b2fa0869 [eax]
-    Function: file:///home/elise/language/dart/work/adven/deopt.dart_::_fibo
-    Line 2: '  if (n < 2) {'
-
 GenerateDeoptimizationStub
 ===============================================================================
 
@@ -139,15 +46,16 @@ deoptimizeは、以下のステップで行う。
 
 image ::
 
-  // GC can occur only after frame is fully rewritten.
-  // Stack:
   //   +------------------+
-  //   | Saved FP         | <- TOS
+  //   | PC marker        | <- TOS
+  //   +------------------+
+  //   | Saved FP         | <- FP of stub
   //   +------------------+
   //   | return-address   |  (deoptimization point)
   //   +------------------+
-  //   | optimized frame  |
-  //   |  ...             |
+  //   | ...              | <- SP of optimized frame
+  //
+  // Parts of the code cannot GC, part of the code can GC.
 
 
 static void GenerateDeoptimizationSequence(Assembler* assembler, bool preserve_eax) ::
@@ -232,13 +140,99 @@ Materializeは、レジスタ割付の用語かな？
 
 
 
+Deoptimization Details
+===============================================================================
+
+begin deoptimize ->translate base line
+
+
+kDeoptimizeCopyFrameRuntimeEntry
+===============================================================================
+code_generator.cpp ::
+
+  // Copies saved registers and caller's frame into temporary buffers.
+  // Returns the stack size of unoptimized frame.
+
+  fpの計算
+  CopySavedRegisters()
+    単純にsaved_registers_addressから順に、cpu_registers_copy[]に値を退避。
+    それらはisolateに格納。isolate.set_deopt_cpu_registers_copy()
+  unoptimized_stack_sizeの計算
+
+kDeoptimizeFillRuntimeEntry
+===============================================================================
+code_generator.cpp ::
+
+  // The stack has been adjusted to fit all values for unoptimized frame.
+  // Fill the unoptimized frame.
+  cpu_regs
+  fpu_regs
+  frame_copy
+
+  DeoptimizeWithDeoptInfo()
+  isolateのdeopt領域の初期化
+
+kDeoptimizeMaterializeRuntimeEntry
+===============================================================================
+code_generator.cpp ::
+
+  // This is the last step in the deoptimization, GC can occur.
+  // Returns number of bytes to remove from the expression stack of the
+  // bottom-most deoptimized frame. Those arguments were artificially injected
+  // under return address to keep them discoverable by GC that can occur during
+  // materialization phase.
+
+  MaterializeDeferredBoxes() <-- doubles, mints, simd まずはprimitive型から
+  MaterializeDeferredObjects() <-- その後instance
+
+
+DeoptimizeWithDeoptInfo()
+===============================================================================
+code_generator.cpp ::
+
+
+  deopt_context
+
+  DeoptimizationContext
+    code.objet_table()
+    GetFieldCount()
+    GetToFrameAddressAt()
+    deopt_instructions->Execute()
+
+DeoptimizationContext
+===============================================================================
+deopt_instructions.cpp ::
+
+DeoptInstr
+
+Location
+
+CompilerDeoptInfo::CreateDeoptInfo
+
+CompilerDeoptInfo
+===============================================================================
+Environment* deopt_env_
+
+AllocateIncomingParametersRecursive(deopt_env)
+EmitMaterializations(deopt_env)
+
+envがLocationを管理している。
+
+
+Environment
+===============================================================================
+  values_
+  locations_
+  deopt_id_
+  function_
+  outer_
+
 
 ===============================================================================
 ===============================================================================
 
 
 LazyStubの場合は、preserve EAX.
-
 ===============================================================================
 
 まとめ
